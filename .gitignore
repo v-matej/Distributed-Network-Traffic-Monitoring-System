@@ -1,0 +1,46 @@
+# Build directories
+build/
+cmake-build*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+
+# CMake generated files
+compile_commands.json
+
+# Executables
+*.out
+*.exe
+*.app
+*.bin
+packet_sniffer
+
+# Object files
+*.o
+*.obj
+
+# Libraries
+*.so
+*.a
+*.lib
+*.dll
+*.dylib
+
+# Debug files
+*.log
+*.gdb
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+
+# pcap files (capture output)
+*.pcap
