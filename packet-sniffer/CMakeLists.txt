@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(packet_sniffer
     src/main.cpp
+    src/cli.cpp
+    src/sniffer.cpp
 )
 
 target_compile_options(packet_sniffer PRIVATE

@@ -1,22 +1,45 @@
-#include <pcap.h>
+#include "cli.hpp"
+#include "sniffer.hpp"
+
 #include <iostream>
+#include <string>
 
-int main() {
-    char errbuf[PCAP_ERRBUF_SIZE];
+int main(int argc, char* argv[]) {
 
-    pcap_if_t *alldevs;
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-        std::cerr << "Error finding devices: " << errbuf << std::endl;
+    if (argc == 1) {
+        print_help(argv[0]);
+        return 0;
+    }
+
+    Config config;
+    std::string error_message;
+
+    if (!parse_arguments(argc, argv, config, error_message)) {
+        std::cerr << "Argument parsing error: " << error_message << "\n\n";
+        print_help(argv[0]);
         return 1;
     }
 
-    std::cout << "Available network interfaces:\n";
-
-    for (pcap_if_t *d = alldevs; d != nullptr; d = d->next) {
-        std::cout << " - " << d->name << std::endl;
+    if (config.show_help) {
+        print_help(argv[0]);
+        return 0;
     }
 
-    pcap_freealldevs(alldevs);
+    if (config.list_interfaces) {
+        list_interfaces();
+        return 0;
+    }
+
+    if (config.interface_name.empty()) {
+        std::cerr << "Error: network interface must be specified with -i <interface>\n\n";
+        print_help(argv[0]);
+        return 1;
+    }
+
+    if (!run_capture(config, error_message)) {
+        std::cerr << "Capture failed: " << error_message << '\n';
+        return 1;
+    }
 
     return 0;
 }
