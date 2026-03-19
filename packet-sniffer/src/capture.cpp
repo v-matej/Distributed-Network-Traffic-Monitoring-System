@@ -1,4 +1,4 @@
-#include "sniffer.hpp"
+#include "sniffer/capture.hpp"
 
 #include <pcap.h>
 
@@ -13,29 +13,25 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace {
 struct CaptureContext {
     pcap_dumper_t* dumper = nullptr;
     bool live_output = false;
-};
-
-enum class StopReason {
-    None,
-    UserSignal,
-    TimeLimit,
-    PacketLimit
+    std::uint64_t packets_captured = 0;
+    std::uint64_t bytes_captured = 0;
 };
 
 static pcap_t* global_handle = nullptr;
-static std::atomic<StopReason> stop_reason {StopReason::None};
+static std::atomic<sniffer::StopReason> stop_reason {sniffer::StopReason::None};
 static std::atomic<bool> capture_finished {false};
 
 static std::mutex timer_mutex;
 static std::condition_variable timer_cv;
 
 void signal_handler(int) {
-    stop_reason = StopReason::UserSignal;
+    stop_reason = sniffer::StopReason::UserSignal;
 
     if (global_handle != nullptr) {
         pcap_breakloop(global_handle);
@@ -62,6 +58,9 @@ void packet_handler(unsigned char* user_data, const pcap_pkthdr* header, const u
         return;
     }
 
+    context->packets_captured++;
+    context->bytes_captured += header->caplen;
+
     if (context->dumper != nullptr) {
         pcap_dump(reinterpret_cast<unsigned char*>(context->dumper), header, packet_data);
     }
@@ -77,34 +76,42 @@ void packet_handler(unsigned char* user_data, const pcap_pkthdr* header, const u
 }
 }  // namespace
 
-void list_interfaces() {
+namespace sniffer {
+
+std::vector<InterfaceInfo> list_interfaces(std::string& error_message) {
+    std::vector<InterfaceInfo> interfaces;
+
     char errbuf[PCAP_ERRBUF_SIZE] {};
     pcap_if_t* devices = nullptr;
 
     if (pcap_findalldevs(&devices, errbuf) == -1) {
-        std::cerr << "Error finding devices: " << errbuf << '\n';
-        return;
+        error_message = errbuf;
+        return interfaces;
     }
 
-    std::cout << "Available network interfaces:\n";
-
     for (pcap_if_t* device = devices; device != nullptr; device = device->next) {
-        std::cout << " - " << device->name;
-
-        if (device->description != nullptr) {
-            std::cout << " (" << device->description << ")";
-        }
-
-        std::cout << '\n';
+        InterfaceInfo info;
+        info.name = device->name != nullptr ? device->name : "";
+        info.description = device->description != nullptr ? device->description : "";
+        interfaces.push_back(info);
     }
 
     pcap_freealldevs(devices);
+    return interfaces;
 }
 
-bool run_capture(const Config& config, std::string& error_message) {
+CaptureResult run_capture(const CaptureConfig& config) {
+    CaptureResult result;
+    result.interface_name = config.interface_name;
+    result.output_file = config.output_file;
+    result.filter_expression = config.filter_expression;
+    result.start_time = std::time(nullptr);
+
     if (config.interface_name.empty()) {
-        error_message = "No network interface specified. Use -i <interface>.";
-        return false;
+        result.stop_reason = StopReason::Error;
+        result.error_message = "No network interface specified.";
+        result.end_time = std::time(nullptr);
+        return result;
     }
 
     stop_reason = StopReason::None;
@@ -124,8 +131,10 @@ bool run_capture(const Config& config, std::string& error_message) {
     );
 
     if (raw_handle == nullptr) {
-        error_message = std::string("Failed to open interface: ") + errbuf;
-        return false;
+        result.stop_reason = StopReason::Error;
+        result.error_message = std::string("Failed to open interface: ") + errbuf;
+        result.end_time = std::time(nullptr);
+        return result;
     }
 
     std::unique_ptr<pcap_t, decltype(&pcap_close)> handle(raw_handle, &pcap_close);
@@ -135,23 +144,29 @@ bool run_capture(const Config& config, std::string& error_message) {
         constexpr bpf_u_int32 netmask = PCAP_NETMASK_UNKNOWN;
 
         if (pcap_compile(handle.get(), &filter_program, config.filter_expression.c_str(), 1, netmask) == -1) {
-            error_message = std::string("Failed to compile filter: ") + pcap_geterr(handle.get());
-            return false;
+            result.stop_reason = StopReason::Error;
+            result.error_message = std::string("Failed to compile filter: ") + pcap_geterr(handle.get());
+            result.end_time = std::time(nullptr);
+            return result;
         }
 
         const int setfilter_result = pcap_setfilter(handle.get(), &filter_program);
         pcap_freecode(&filter_program);
 
         if (setfilter_result == -1) {
-            error_message = std::string("Failed to apply filter: ") + pcap_geterr(handle.get());
-            return false;
+            result.stop_reason = StopReason::Error;
+            result.error_message = std::string("Failed to apply filter: ") + pcap_geterr(handle.get());
+            result.end_time = std::time(nullptr);
+            return result;
         }
     }
 
     pcap_dumper_t* raw_dumper = pcap_dump_open(handle.get(), config.output_file.c_str());
     if (raw_dumper == nullptr) {
-        error_message = std::string("Failed to open output PCAP file: ") + pcap_geterr(handle.get());
-        return false;
+        result.stop_reason = StopReason::Error;
+        result.error_message = std::string("Failed to open output PCAP file: ") + pcap_geterr(handle.get());
+        result.end_time = std::time(nullptr);
+        return result;
     }
 
     std::unique_ptr<pcap_dumper_t, decltype(&pcap_dump_close)> dumper(raw_dumper, &pcap_dump_close);
@@ -205,7 +220,7 @@ bool run_capture(const Config& config, std::string& error_message) {
 
     const int loop_count = (config.packet_count > 0) ? config.packet_count : -1;
 
-    const int result = pcap_loop(
+    const int loop_result = pcap_loop(
         handle.get(),
         loop_count,
         packet_handler,
@@ -224,16 +239,24 @@ bool run_capture(const Config& config, std::string& error_message) {
         timer_thread.join();
     }
 
-    if (result == -1) {
-        error_message = std::string("Capture error: ") + pcap_geterr(handle.get());
-        return false;
+    result.packets_captured = context.packets_captured;
+    result.bytes_captured = context.bytes_captured;
+    result.end_time = std::time(nullptr);
+
+    if (loop_result == -1) {
+        result.stop_reason = StopReason::Error;
+        result.error_message = std::string("Capture error: ") + pcap_geterr(handle.get());
+        return result;
     }
 
-    if (result >= 0 && config.packet_count > 0 && stop_reason.load() == StopReason::None) {
+    if (loop_result >= 0 && config.packet_count > 0 && stop_reason.load() == StopReason::None) {
         stop_reason = StopReason::PacketLimit;
     }
 
-    switch (stop_reason.load()) {
+    result.stop_reason = stop_reason.load();
+    result.success = true;
+
+    switch (result.stop_reason) {
         case StopReason::UserSignal:
             std::cout << "Capture terminated by user.\n";
             break;
@@ -244,9 +267,14 @@ bool run_capture(const Config& config, std::string& error_message) {
             std::cout << "Capture finished: packet count limit reached.\n";
             break;
         case StopReason::None:
+            std::cout << "Capture finished.\n";
+            break;
+        case StopReason::Error:
             break;
     }
 
     std::cout << "Capture finished successfully.\n";
-    return true;
+    return result;
 }
+
+}  // namespace sniffer

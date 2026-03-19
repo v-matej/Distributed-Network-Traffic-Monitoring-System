@@ -3,30 +3,30 @@
 #include <iostream>
 #include <string>
 
-bool parse_arguments(int argc, char* argv[], Config& config, std::string& error_message) {
+bool parse_arguments(int argc, char* argv[], CliOptions& options, std::string& error_message) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
 
         if (arg == "--list") {
-            config.list_interfaces = true;
+            options.list_interfaces = true;
         } else if (arg == "-i") {
             if (i + 1 >= argc) {
                 error_message = "Missing value for -i";
                 return false;
             }
-            config.interface_name = argv[++i];
+            options.capture_config.interface_name = argv[++i];
         } else if (arg == "-w") {
             if (i + 1 >= argc) {
                 error_message = "Missing value for -w";
                 return false;
             }
-            config.output_file = argv[++i];
+            options.capture_config.output_file = argv[++i];
         } else if (arg == "-f") {
             if (i + 1 >= argc) {
                 error_message = "Missing value for -f";
                 return false;
             }
-            config.filter_expression = argv[++i];
+            options.capture_config.filter_expression = argv[++i];
         } else if (arg == "-c") {
             if (i + 1 >= argc) {
                 error_message = "Missing value for -c";
@@ -34,13 +34,13 @@ bool parse_arguments(int argc, char* argv[], Config& config, std::string& error_
             }
 
             try {
-                config.packet_count = std::stoi(argv[++i]);
+                options.capture_config.packet_count = std::stoi(argv[++i]);
             } catch (...) {
                 error_message = "Invalid integer value for -c";
                 return false;
             }
 
-            if (config.packet_count <= 0) {
+            if (options.capture_config.packet_count <= 0) {
                 error_message = "Packet count for -c must be greater than 0";
                 return false;
             }
@@ -51,20 +51,20 @@ bool parse_arguments(int argc, char* argv[], Config& config, std::string& error_
             }
 
             try {
-                config.duration_seconds = std::stoi(argv[++i]);
+                options.capture_config.duration_seconds = std::stoi(argv[++i]);
             } catch (...) {
                 error_message = "Invalid integer value for -t";
                 return false;
             }
 
-            if (config.duration_seconds <= 0) {
+            if (options.capture_config.duration_seconds <= 0) {
                 error_message = "Duration for -t must be greater than 0";
                 return false;
             }
         } else if (arg == "-l") {
-            config.live_output = true;
+            options.capture_config.live_output = true;
         } else if (arg == "-h" || arg == "--help") {
-            config.show_help = true;
+            options.show_help = true;
         } else {
             error_message = "Unknown argument: " + arg;
             return false;
@@ -84,6 +84,6 @@ void print_help(const char* program_name) {
         << "  -f <filter>       BPF filter expression\n"
         << "  -c <count>        Number of packets to capture\n"
         << "  -t <seconds>      Capture duration in seconds\n"
-        << "  -l                Print live packet info\n"
+        << "  -l                Print live packet info (debug)\n"
         << "  -h, --help        Show this help message\n";
 }
