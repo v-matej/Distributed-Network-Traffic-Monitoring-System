@@ -25,8 +25,10 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    auto capture_service = sniffer::create_pcap_capture_service();
+
     if (options.list_interfaces) {
-        const auto interfaces = sniffer::list_interfaces(error_message);
+        const auto interfaces = capture_service->list_interfaces(error_message);
 
         if (!error_message.empty()) {
             std::cerr << "Failed to list interfaces: " << error_message << '\n';
@@ -51,7 +53,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const sniffer::CaptureResult result = sniffer::run_capture(options.capture_config);
+    const sniffer::CaptureResult result = capture_service->run_capture(options.capture_config);
 
     if (!result.success) {
         std::cerr << "Capture failed: " << result.error_message << '\n';

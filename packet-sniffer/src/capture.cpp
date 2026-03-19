@@ -78,7 +78,7 @@ void packet_handler(unsigned char* user_data, const pcap_pkthdr* header, const u
 
 namespace sniffer {
 
-std::vector<InterfaceInfo> list_interfaces(std::string& error_message) {
+std::vector<InterfaceInfo> PcapCaptureService::list_interfaces(std::string& error_message) {
     std::vector<InterfaceInfo> interfaces;
 
     char errbuf[PCAP_ERRBUF_SIZE] {};
@@ -100,7 +100,7 @@ std::vector<InterfaceInfo> list_interfaces(std::string& error_message) {
     return interfaces;
 }
 
-CaptureResult run_capture(const CaptureConfig& config) {
+CaptureResult PcapCaptureService::run_capture(const CaptureConfig& config) {
     CaptureResult result;
     result.interface_name = config.interface_name;
     result.output_file = config.output_file;
@@ -275,6 +275,10 @@ CaptureResult run_capture(const CaptureConfig& config) {
 
     std::cout << "Capture finished successfully.\n";
     return result;
+}
+
+std::shared_ptr<ICaptureService> create_pcap_capture_service() {
+    return std::make_shared<PcapCaptureService>();
 }
 
 }  // namespace sniffer
