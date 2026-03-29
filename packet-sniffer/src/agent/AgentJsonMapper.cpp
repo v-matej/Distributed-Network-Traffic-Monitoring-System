@@ -104,6 +104,10 @@ bool parse_capture_config_json(
         }
 
         config.interface_name = j["interface_name"].get<std::string>();
+        if (config.interface_name.empty()) {
+            error_message = "'interface_name' must not be empty";
+            return false;
+        }
 
         if (j.contains("output_file")) {
             if (!j["output_file"].is_string()) {

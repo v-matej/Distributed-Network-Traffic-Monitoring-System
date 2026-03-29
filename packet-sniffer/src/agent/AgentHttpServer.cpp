@@ -2,7 +2,6 @@
 
 #include "agent/AgentJsonMapper.hpp"
 
-#include <yhirose/httplib.h>
 #include <nlohmann/json.hpp>
 
 #include <iostream>
@@ -14,8 +13,6 @@ namespace agent {
 using json = nlohmann::json;
 
 namespace {
-httplib::Server* global_server_instance = nullptr;
-
 std::string make_error_json(const std::string& message) {
     json error_json;
     error_json["status"] = "error";
@@ -31,22 +28,23 @@ AgentHttpServer::AgentHttpServer(
     : agent_service_(std::move(agent_service)),
       config_(std::move(config)) {}
 
+AgentHttpServer::~AgentHttpServer() {
+    stop();
+}
+
 bool AgentHttpServer::start(std::string& error_message) {
     if (!agent_service_) {
         error_message = "Agent service is not initialized.";
         return false;
     }
 
-    httplib::Server server;
-    global_server_instance = &server;
-
-    server.Get("/health", [this](const httplib::Request&, httplib::Response& res) {
+    server_.Get("/health", [this](const httplib::Request&, httplib::Response& res) {
         const auto health = agent_service_->get_health();
         res.set_content(to_json(health), "application/json");
         res.status = 200;
     });
 
-    server.Get("/interfaces", [this](const httplib::Request&, httplib::Response& res) {
+    server_.Get("/interfaces", [this](const httplib::Request&, httplib::Response& res) {
         std::string error_message;
         const auto interfaces = agent_service_->get_interfaces(error_message);
 
@@ -60,7 +58,7 @@ bool AgentHttpServer::start(std::string& error_message) {
         res.status = 200;
     });
 
-    server.Post("/captures", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Post("/captures", [this](const httplib::Request& req, httplib::Response& res) {
         if (req.body.empty()) {
             res.set_content(make_error_json("Request body is empty"), "application/json");
             res.status = 400;
@@ -76,18 +74,25 @@ bool AgentHttpServer::start(std::string& error_message) {
             return;
         }
 
-        const auto session = agent_service_->start_capture_session(config);
+        CaptureSessionInfo session;
+        std::string start_error;
+        if (!agent_service_->start_capture_session(config, session, start_error)) {
+            res.set_content(make_error_json(start_error), "application/json");
+            res.status = 400;
+            return;
+        }
+
         res.set_content(to_json(session), "application/json");
         res.status = 202;
     });
 
-    server.Get("/captures", [this](const httplib::Request&, httplib::Response& res) {
+    server_.Get("/captures", [this](const httplib::Request&, httplib::Response& res) {
         const auto sessions = agent_service_->list_capture_sessions();
         res.set_content(to_json(sessions), "application/json");
         res.status = 200;
     });
 
-    server.Get(R"(/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Get(R"(/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto capture_id = req.matches[1].str();
         const auto session = agent_service_->get_capture_session(capture_id);
 
@@ -101,7 +106,7 @@ bool AgentHttpServer::start(std::string& error_message) {
         res.status = 200;
     });
 
-    server.Post(R"(/captures/([A-Za-z0-9\-_]+)/stop)", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Post(R"(/captures/([A-Za-z0-9\-_]+)/stop)", [this](const httplib::Request& req, httplib::Response& res) {
         const auto capture_id = req.matches[1].str();
         std::string error_message;
 
@@ -122,7 +127,7 @@ bool AgentHttpServer::start(std::string& error_message) {
         res.status = 202;
     });
 
-    server.set_error_handler([](const httplib::Request&, httplib::Response& res) {
+    server_.set_error_handler([](const httplib::Request&, httplib::Response& res) {
         res.set_content(make_error_json("Resource not found"), "application/json");
         res.status = 404;
     });
@@ -130,8 +135,7 @@ bool AgentHttpServer::start(std::string& error_message) {
     std::cout << "Agent HTTP server listening on "
               << config_.bind_address << ":" << config_.port << '\n';
 
-    const bool listen_ok = server.listen(config_.bind_address.c_str(), config_.port);
-    global_server_instance = nullptr;
+    const bool listen_ok = server_.listen(config_.bind_address.c_str(), config_.port);
 
     if (!listen_ok) {
         error_message = "Failed to bind HTTP server to " +
@@ -143,8 +147,9 @@ bool AgentHttpServer::start(std::string& error_message) {
 }
 
 void AgentHttpServer::stop() {
-    if (global_server_instance != nullptr) {
-        global_server_instance->stop();
+    server_.stop();
+    if (agent_service_) {
+        agent_service_->shutdown();
     }
 }
 

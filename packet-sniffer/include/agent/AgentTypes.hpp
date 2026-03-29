@@ -10,6 +10,7 @@ namespace agent {
 struct AgentConfig {
     std::string agent_name = "agent";
     std::string version = "0.1.0";
+    std::string capture_storage_directory = "captures";
 };
 
 struct HealthInfo {
