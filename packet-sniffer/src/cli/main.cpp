@@ -53,6 +53,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    options.capture_config.enable_signal_stop = true;
+    options.capture_config.enable_console_output = true;
+
     const sniffer::CaptureResult result = capture_service->run_capture(options.capture_config);
 
     if (!result.success) {

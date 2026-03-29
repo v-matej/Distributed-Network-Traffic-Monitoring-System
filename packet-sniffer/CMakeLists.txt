@@ -25,8 +25,9 @@ target_link_libraries(sniffer_core
 )
 
 add_library(agent_core STATIC
-    src/agent/service.cpp
-    src/agent/json_mapper.cpp
+    src/agent/AgentCaptureManager.cpp
+    src/agent/AgentService.cpp
+    src/agent/AgentJsonMapper.cpp
 )
 
 target_include_directories(agent_core
@@ -44,7 +45,7 @@ target_link_libraries(agent_core
 )
 
 add_library(agent_http STATIC
-    src/agent/http_server.cpp
+    src/agent/AgentHttpServer.cpp
 )
 
 target_include_directories(agent_http

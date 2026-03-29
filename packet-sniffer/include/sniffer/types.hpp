@@ -1,7 +1,11 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <ctime>
+#include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
 
 namespace sniffer {
@@ -11,7 +15,59 @@ enum class StopReason {
     UserSignal,
     TimeLimit,
     PacketLimit,
+    ExternalStop,
     Error
+};
+
+class CaptureControl {
+public:
+    void request_stop() {
+        stop_requested_.store(true);
+
+        std::function<void()> callback;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            callback = stop_callback_;
+        }
+
+        if (callback) {
+            callback();
+        }
+    }
+
+    [[nodiscard]] bool is_stop_requested() const {
+        return stop_requested_.load();
+    }
+
+    void set_stop_callback(std::function<void()> callback) {
+        bool invoke_immediately = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stop_callback_ = std::move(callback);
+            invoke_immediately = stop_requested_.load() && static_cast<bool>(stop_callback_);
+        }
+
+        if (invoke_immediately) {
+            std::function<void()> immediate_callback;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                immediate_callback = stop_callback_;
+            }
+            if (immediate_callback) {
+                immediate_callback();
+            }
+        }
+    }
+
+    void clear_stop_callback() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stop_callback_ = {};
+    }
+
+private:
+    std::atomic<bool> stop_requested_ {false};
+    mutable std::mutex mutex_;
+    std::function<void()> stop_callback_;
 };
 
 struct InterfaceInfo {
@@ -26,6 +82,9 @@ struct CaptureConfig {
     int packet_count = 0;
     int duration_seconds = 0;
     bool live_output = false;
+    bool enable_signal_stop = false;
+    bool enable_console_output = true;
+    std::shared_ptr<CaptureControl> control;
 };
 
 struct CaptureResult {
@@ -51,6 +110,8 @@ inline std::string to_string(StopReason reason) {
             return "time_limit";
         case StopReason::PacketLimit:
             return "packet_limit";
+        case StopReason::ExternalStop:
+            return "external_stop";
         case StopReason::Error:
             return "error";
     }

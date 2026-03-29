@@ -1,8 +1,9 @@
-#include "agent/service.hpp"
+#include "agent/AgentService.hpp"
 
 #include <unistd.h>
 
 #include <array>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -26,7 +27,8 @@ AgentService::AgentService(
     std::shared_ptr<sniffer::ICaptureService> capture_service
 )
     : config_(std::move(config)),
-      capture_service_(std::move(capture_service)) {
+      capture_service_(std::move(capture_service)),
+      capture_manager_(std::make_shared<AgentCaptureManager>(capture_service_)) {
     if (!capture_service_) {
         throw std::invalid_argument("capture_service must not be null");
     }
@@ -45,8 +47,20 @@ std::vector<sniffer::InterfaceInfo> AgentService::get_interfaces(std::string& er
     return capture_service_->list_interfaces(error_message);
 }
 
-sniffer::CaptureResult AgentService::start_capture(const sniffer::CaptureConfig& config) const {
-    return capture_service_->run_capture(config);
+CaptureSessionInfo AgentService::start_capture_session(const sniffer::CaptureConfig& config) {
+    return capture_manager_->start_capture(config);
+}
+
+std::optional<CaptureSessionInfo> AgentService::get_capture_session(const std::string& capture_id) const {
+    return capture_manager_->get_capture_session(capture_id);
+}
+
+std::vector<CaptureSessionInfo> AgentService::list_capture_sessions() const {
+    return capture_manager_->list_capture_sessions();
+}
+
+bool AgentService::stop_capture_session(const std::string& capture_id, std::string& error_message) {
+    return capture_manager_->request_stop(capture_id, error_message);
 }
 
 }  // namespace agent

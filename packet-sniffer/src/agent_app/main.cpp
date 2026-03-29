@@ -1,6 +1,6 @@
-#include "agent/http_server.hpp"
-#include "agent/service.hpp"
-#include "agent/types.hpp"
+#include "agent/AgentHttpServer.hpp"
+#include "agent/AgentService.hpp"
+#include "agent/AgentTypes.hpp"
 #include "sniffer/capture.hpp"
 
 #include <iostream>
@@ -11,7 +11,7 @@ int main() {
     try {
         agent::AgentConfig agent_config;
         agent_config.agent_name = "Client-1";
-        agent_config.version = "0.1.0";
+        agent_config.version = "0.2.0";
 
         auto capture_service = sniffer::create_pcap_capture_service();
         auto agent_service = std::make_shared<agent::AgentService>(agent_config, capture_service);
