@@ -1,5 +1,7 @@
 # Build directories
 build/
+build_test/
+build_controller/
 cmake-build*/
 CMakeFiles/
 CMakeCache.txt

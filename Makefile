@@ -8,4 +8,4 @@ build:
 clean:
 	rm -rf $(BUILD_DIR)
 
-rebuild: clean build
+rebuild: clean buildpa

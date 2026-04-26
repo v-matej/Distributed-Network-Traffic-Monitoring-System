@@ -62,6 +62,46 @@ target_link_libraries(agent_http
     PUBLIC agent_core
 )
 
+
+add_library(controller_core STATIC
+    src/controller/AgentRegistry.cpp
+    src/controller/HttpAgentClient.cpp
+    src/controller/ControllerService.cpp
+    src/controller/ControllerJsonMapper.cpp
+)
+
+target_include_directories(controller_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/external
+)
+
+target_compile_options(controller_core PRIVATE
+    -Wall -Wextra -Wpedantic
+)
+
+target_link_libraries(controller_core
+    PUBLIC
+)
+
+add_library(controller_http STATIC
+    src/controller/ControllerHttpServer.cpp
+)
+
+target_include_directories(controller_http
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/external
+)
+
+target_compile_options(controller_http PRIVATE
+    -Wall -Wextra -Wpedantic
+)
+
+target_link_libraries(controller_http
+    PUBLIC controller_core
+)
+
 add_executable(packet_sniffer
     src/cli/main.cpp
     src/cli/cli.cpp
@@ -85,4 +125,16 @@ target_compile_options(agent_server PRIVATE
 
 target_link_libraries(agent_server
     PRIVATE agent_http agent_core sniffer_core
+)
+
+add_executable(controller_server
+    src/controller_app/main.cpp
+)
+
+target_compile_options(controller_server PRIVATE
+    -Wall -Wextra -Wpedantic
+)
+
+target_link_libraries(controller_server
+    PRIVATE controller_http controller_core
 )
