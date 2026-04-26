@@ -1,5 +1,5 @@
 BUILD_DIR=build
-SOURCE_DIR=packet-sniffer
+SOURCE_DIR=.
 
 build:
 	cmake -S $(SOURCE_DIR) -B $(BUILD_DIR)
