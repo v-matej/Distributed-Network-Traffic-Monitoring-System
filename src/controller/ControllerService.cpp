@@ -18,6 +18,15 @@ bool ControllerService::add_agent(const AddAgentRequest& request, KnownAgent& ad
     return agent_registry_->add_agent(request, added_agent, error_message);
 }
 
+bool ControllerService::remove_agent(const std::string& agent_id, KnownAgent& removed_agent, std::string& error_message) {
+    if (!agent_registry_) {
+        error_message = "Agent registry is not initialized";
+        return false;
+    }
+
+    return agent_registry_->remove_agent(agent_id, removed_agent, error_message);
+}
+
 std::vector<KnownAgent> ControllerService::list_agents() const {
     if (!agent_registry_) {
         return {};

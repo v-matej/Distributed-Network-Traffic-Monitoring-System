@@ -15,6 +15,7 @@ public:
     explicit ControllerService(std::shared_ptr<AgentRegistry> agent_registry);
 
     bool add_agent(const AddAgentRequest& request, KnownAgent& added_agent, std::string& error_message);
+    bool remove_agent(const std::string& agent_id, KnownAgent& removed_agent, std::string& error_message);
     std::vector<KnownAgent> list_agents() const;
     std::optional<KnownAgent> get_agent(const std::string& agent_id) const;
 

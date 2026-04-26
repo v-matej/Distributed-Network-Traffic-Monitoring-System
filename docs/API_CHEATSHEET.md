@@ -183,7 +183,19 @@ Expected status:
 
 ---
 
-## 2.4 Agent health through controller
+## 2.4 Delete one known agent
+
+```bash
+curl -X DELETE http://127.0.0.1:8090/api/agents/agent-0001
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+---
+
+## 2.5 Agent health through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/health
@@ -196,7 +208,7 @@ Expected status:
 
 ---
 
-## 2.5 Agent interfaces through controller
+## 2.6 Agent interfaces through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/interfaces
@@ -209,7 +221,7 @@ Expected status:
 
 ---
 
-## 2.6 Start remote capture through controller
+## 2.7 Start remote capture through controller
 
 Replace `YOUR_INTERFACE` with a real interface name from the selected agent.
 
@@ -244,7 +256,7 @@ curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures \
 
 ---
 
-## 2.7 List captures through controller
+## 2.8 List captures through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/captures
@@ -257,7 +269,7 @@ Expected status:
 
 ---
 
-## 2.8 Get one capture through controller
+## 2.9 Get one capture through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID
@@ -270,7 +282,7 @@ Expected status:
 
 ---
 
-## 2.9 Stop one capture through controller
+## 2.10 Stop one capture through controller
 
 ```bash
 curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/stop

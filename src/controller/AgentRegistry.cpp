@@ -44,6 +44,20 @@ bool AgentRegistry::add_agent(const AddAgentRequest& request, KnownAgent& added_
     return true;
 }
 
+bool AgentRegistry::remove_agent(const std::string& agent_id, KnownAgent& removed_agent, std::string& error_message) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    const auto it = agents_.find(agent_id);
+    if (it == agents_.end()) {
+        error_message = "Agent not found";
+        return false;
+    }
+
+    removed_agent = it->second;
+    agents_.erase(it);
+    return true;
+}
+
 std::optional<KnownAgent> AgentRegistry::get_agent(const std::string& agent_id) const {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = agents_.find(agent_id);

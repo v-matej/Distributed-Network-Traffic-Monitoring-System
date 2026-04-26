@@ -75,6 +75,21 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 201;
     });
 
+    server_.Delete(R"(/api/agents/([A-Za-z0-9_-]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+
+        KnownAgent removed_agent;
+        std::string remove_error;
+        if (!controller_service_->remove_agent(agent_id, removed_agent, remove_error)) {
+            res.set_content(make_error_json(remove_error), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_content(to_json(removed_agent), "application/json");
+        res.status = 200;
+    });
+
     server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/health)", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
 
