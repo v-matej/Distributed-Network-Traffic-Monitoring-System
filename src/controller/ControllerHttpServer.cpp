@@ -7,6 +7,28 @@
 
 namespace controller {
 
+namespace {
+
+int map_info_proxy_status(int response_status) {
+    if (response_status == 404) {
+        return 404;
+    }
+    return 502;
+}
+
+int map_capture_proxy_status(int response_status) {
+    switch (response_status) {
+        case 400:
+        case 404:
+        case 409:
+            return response_status;
+        default:
+            return 502;
+    }
+}
+
+}  // namespace
+
 ControllerHttpServer::ControllerHttpServer(
     std::shared_ptr<ControllerService> controller_service,
     ControllerHttpServerConfig config
@@ -57,16 +79,11 @@ bool ControllerHttpServer::start(std::string& error_message) {
         const auto agent_id = req.matches[1].str();
 
         KnownAgentWithHealth result;
-        std::string error_message;
-        if (!controller_service_->get_agent_health(agent_id, result, error_message)) {
-            const auto agent = controller_service_->get_agent(agent_id);
-            if (!agent.has_value()) {
-                res.set_content(make_error_json("Agent not found"), "application/json");
-                res.status = 404;
-            } else {
-                res.set_content(make_error_json(error_message), "application/json");
-                res.status = 502;
-            }
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->get_agent_health(agent_id, result, route_error_message, response_status)) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_info_proxy_status(response_status);
             return;
         }
 
@@ -79,20 +96,131 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
         KnownAgent agent;
         std::vector<RemoteInterfaceInfo> interfaces;
-        std::string error_message;
-        if (!controller_service_->get_agent_interfaces(agent_id, agent, interfaces, error_message)) {
-            const auto known_agent = controller_service_->get_agent(agent_id);
-            if (!known_agent.has_value()) {
-                res.set_content(make_error_json("Agent not found"), "application/json");
-                res.status = 404;
-            } else {
-                res.set_content(make_error_json(error_message), "application/json");
-                res.status = 502;
-            }
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->get_agent_interfaces(
+                agent_id,
+                agent,
+                interfaces,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_info_proxy_status(response_status);
             return;
         }
 
         res.set_content(to_json(agent, interfaces), "application/json");
+        res.status = 200;
+    });
+
+    server_.Post(R"(/api/agents/([A-Za-z0-9_-]+)/captures)", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.body.empty()) {
+            res.set_content(make_error_json("Request body is empty"), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        RemoteCaptureRequest request;
+        std::string parse_error;
+        if (!parse_remote_capture_request_json(req.body, request, parse_error)) {
+            res.set_content(make_error_json(parse_error), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        const auto agent_id = req.matches[1].str();
+        KnownAgent agent;
+        RemoteCaptureSessionInfo capture;
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->start_agent_capture(
+                agent_id,
+                request,
+                agent,
+                capture,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_capture_proxy_status(response_status);
+            return;
+        }
+
+        res.set_content(to_json(agent, capture), "application/json");
+        res.status = 202;
+    });
+
+    server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+
+        KnownAgent agent;
+        std::vector<RemoteCaptureSessionInfo> captures;
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->list_agent_captures(
+                agent_id,
+                agent,
+                captures,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_info_proxy_status(response_status);
+            return;
+        }
+
+        res.set_content(to_json(agent, captures), "application/json");
+        res.status = 200;
+    });
+
+    server_.Post(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+)/stop)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        KnownAgent agent;
+        RemoteCaptureSessionInfo capture;
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->stop_agent_capture(
+                agent_id,
+                capture_id,
+                agent,
+                capture,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_capture_proxy_status(response_status);
+            return;
+        }
+
+        res.set_content(to_json(agent, capture), "application/json");
+        res.status = 202;
+    });
+
+    server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        KnownAgent agent;
+        RemoteCaptureSessionInfo capture;
+        std::string route_error_message;
+        int response_status = 0;
+        if (!controller_service_->get_agent_capture(
+                agent_id,
+                capture_id,
+                agent,
+                capture,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_capture_proxy_status(response_status);
+            return;
+        }
+
+        res.set_content(to_json(agent, capture), "application/json");
         res.status = 200;
     });
 

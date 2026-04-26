@@ -21,14 +21,51 @@ public:
     bool get_agent_health(
         const std::string& agent_id,
         KnownAgentWithHealth& result,
-        std::string& error_message
+        std::string& error_message,
+        int& response_status
     ) const;
 
     bool get_agent_interfaces(
         const std::string& agent_id,
         KnownAgent& agent,
         std::vector<RemoteInterfaceInfo>& interfaces,
-        std::string& error_message
+        std::string& error_message,
+        int& response_status
+    ) const;
+
+    bool start_agent_capture(
+        const std::string& agent_id,
+        const RemoteCaptureRequest& request,
+        KnownAgent& agent,
+        RemoteCaptureSessionInfo& session,
+        std::string& error_message,
+        int& response_status
+    ) const;
+
+    bool list_agent_captures(
+        const std::string& agent_id,
+        KnownAgent& agent,
+        std::vector<RemoteCaptureSessionInfo>& captures,
+        std::string& error_message,
+        int& response_status
+    ) const;
+
+    bool get_agent_capture(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        KnownAgent& agent,
+        RemoteCaptureSessionInfo& session,
+        std::string& error_message,
+        int& response_status
+    ) const;
+
+    bool stop_agent_capture(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        KnownAgent& agent,
+        RemoteCaptureSessionInfo& session,
+        std::string& error_message,
+        int& response_status
     ) const;
 
 private:

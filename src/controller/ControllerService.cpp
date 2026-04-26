@@ -37,17 +37,19 @@ std::optional<KnownAgent> ControllerService::get_agent(const std::string& agent_
 bool ControllerService::get_agent_health(
     const std::string& agent_id,
     KnownAgentWithHealth& result,
-    std::string& error_message
+    std::string& error_message,
+    int& response_status
 ) const {
     const auto agent = get_agent(agent_id);
     if (!agent.has_value()) {
+        response_status = 404;
         error_message = "Agent not found";
         return false;
     }
 
     HttpAgentClient agent_client(endpoint_from_agent(*agent));
     RemoteHealthInfo health;
-    if (!agent_client.get_health(health, error_message)) {
+    if (!agent_client.get_health(health, error_message, response_status)) {
         return false;
     }
 
@@ -60,16 +62,113 @@ bool ControllerService::get_agent_interfaces(
     const std::string& agent_id,
     KnownAgent& agent,
     std::vector<RemoteInterfaceInfo>& interfaces,
-    std::string& error_message
+    std::string& error_message,
+    int& response_status
 ) const {
     const auto known_agent = get_agent(agent_id);
     if (!known_agent.has_value()) {
+        response_status = 404;
         error_message = "Agent not found";
         return false;
     }
 
     HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
-    if (!agent_client.list_interfaces(interfaces, error_message)) {
+    if (!agent_client.list_interfaces(interfaces, error_message, response_status)) {
+        return false;
+    }
+
+    agent = *known_agent;
+    return true;
+}
+
+bool ControllerService::start_agent_capture(
+    const std::string& agent_id,
+    const RemoteCaptureRequest& request,
+    KnownAgent& agent,
+    RemoteCaptureSessionInfo& session,
+    std::string& error_message,
+    int& response_status
+) const {
+    const auto known_agent = get_agent(agent_id);
+    if (!known_agent.has_value()) {
+        response_status = 404;
+        error_message = "Agent not found";
+        return false;
+    }
+
+    HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
+    if (!agent_client.start_capture(request, session, error_message, response_status)) {
+        return false;
+    }
+
+    agent = *known_agent;
+    return true;
+}
+
+bool ControllerService::list_agent_captures(
+    const std::string& agent_id,
+    KnownAgent& agent,
+    std::vector<RemoteCaptureSessionInfo>& captures,
+    std::string& error_message,
+    int& response_status
+) const {
+    const auto known_agent = get_agent(agent_id);
+    if (!known_agent.has_value()) {
+        response_status = 404;
+        error_message = "Agent not found";
+        return false;
+    }
+
+    HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
+    if (!agent_client.list_captures(captures, error_message, response_status)) {
+        return false;
+    }
+
+    agent = *known_agent;
+    return true;
+}
+
+bool ControllerService::get_agent_capture(
+    const std::string& agent_id,
+    const std::string& capture_id,
+    KnownAgent& agent,
+    RemoteCaptureSessionInfo& session,
+    std::string& error_message,
+    int& response_status
+) const {
+    const auto known_agent = get_agent(agent_id);
+    if (!known_agent.has_value()) {
+        response_status = 404;
+        error_message = "Agent not found";
+        return false;
+    }
+
+    HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
+    if (!agent_client.get_capture(capture_id, session, error_message, response_status)) {
+        return false;
+    }
+
+    agent = *known_agent;
+    return true;
+}
+
+bool ControllerService::stop_agent_capture(
+    const std::string& agent_id,
+    const std::string& capture_id,
+    KnownAgent& agent,
+    RemoteCaptureSessionInfo& session,
+    std::string& error_message,
+    int& response_status
+) const {
+    const auto known_agent = get_agent(agent_id);
+    if (!known_agent.has_value()) {
+        response_status = 404;
+        error_message = "Agent not found";
+        return false;
+    }
+
+    HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
+    if (!agent_client.stop_capture(capture_id, session, error_message, response_status)) {
         return false;
     }
 
