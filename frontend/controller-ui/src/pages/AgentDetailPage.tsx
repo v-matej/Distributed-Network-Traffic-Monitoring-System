@@ -1,27 +1,161 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
   getAgent,
   getAgentHealth,
   getAgentInterfaces,
+  listAgentCaptures,
+  startAgentCapture,
+  stopAgentCapture,
 } from "../lib/api";
+
 import type {
+  AgentCapturesResponse,
   AgentInterfacesResponse,
   KnownAgent,
   KnownAgentWithHealth,
+  RemoteCaptureSessionInfo,
 } from "../lib/api";
+
+type ProtocolFilter = "tcp" | "udp" | "icmp" | "arp" | "ip" | "ip6";
+
+type PresetFilter =
+  | "dns"
+  | "http"
+  | "https"
+  | "ssh"
+  | "dhcp"
+  | "ntp"
+  | "mdns"
+  | "ping";
+
+const PROTOCOL_FILTERS: Array<{
+  id: ProtocolFilter;
+  label: string;
+  className: string;
+}> = [
+  { id: "tcp", label: "TCP", className: "protocol-tcp" },
+  { id: "udp", label: "UDP", className: "protocol-udp" },
+  { id: "icmp", label: "ICMP", className: "protocol-icmp" },
+  { id: "arp", label: "ARP", className: "protocol-arp" },
+  { id: "ip", label: "IPv4", className: "protocol-ip" },
+  { id: "ip6", label: "IPv6", className: "protocol-ip6" },
+];
+
+const PRESET_FILTERS: Array<{
+  id: PresetFilter;
+  label: string;
+  expression: string;
+  className: string;
+}> = [
+  {
+    id: "dns",
+    label: "DNS",
+    expression: "(udp port 53 or tcp port 53)",
+    className: "preset-dns",
+  },
+  {
+    id: "http",
+    label: "HTTP",
+    expression: "tcp port 80",
+    className: "preset-http",
+  },
+  {
+    id: "https",
+    label: "HTTPS",
+    expression: "tcp port 443",
+    className: "preset-https",
+  },
+  {
+    id: "ssh",
+    label: "SSH",
+    expression: "tcp port 22",
+    className: "preset-ssh",
+  },
+  {
+    id: "dhcp",
+    label: "DHCP",
+    expression: "(udp port 67 or udp port 68)",
+    className: "preset-dhcp",
+  },
+  {
+    id: "ntp",
+    label: "NTP",
+    expression: "udp port 123",
+    className: "preset-ntp",
+  },
+  {
+    id: "mdns",
+    label: "mDNS",
+    expression: "udp port 5353",
+    className: "preset-mdns",
+  },
+  {
+    id: "ping",
+    label: "Ping",
+    expression: "icmp",
+    className: "preset-ping",
+  },
+];
 
 export function AgentDetailPage() {
   const { agentId } = useParams();
 
   const [agent, setAgent] = useState<KnownAgent | null>(null);
   const [health, setHealth] = useState<KnownAgentWithHealth | null>(null);
-  const [interfaces, setInterfaces] = useState<AgentInterfacesResponse | null>(null);
+  const [interfaces, setInterfaces] = useState<AgentInterfacesResponse | null>(
+    null,
+  );
+  const [captures, setCaptures] = useState<AgentCapturesResponse | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
+  const [isStartingCapture, setIsStartingCapture] = useState(false);
+  const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [lastHealthCheckAt, setLastHealthCheckAt] = useState<Date | null>(null);
+
+  const [selectedInterface, setSelectedInterface] = useState("");
+
+  const [protocolFilters, setProtocolFilters] = useState<ProtocolFilter[]>([]);
+  const [presetFilters, setPresetFilters] = useState<PresetFilter[]>([]);
+
+  const [sourceHost, setSourceHost] = useState("");
+  const [destinationHost, setDestinationHost] = useState("");
+  const [networkFilter, setNetworkFilter] = useState("");
+
+  const [sourcePort, setSourcePort] = useState("");
+  const [destinationPort, setDestinationPort] = useState("");
+  const [portRange, setPortRange] = useState("");
+
+  const [sourceMac, setSourceMac] = useState("");
+  const [destinationMac, setDestinationMac] = useState("");
+
+  const [advancedFilter, setAdvancedFilter] = useState("");
+
+  const [enableDurationLimit, setEnableDurationLimit] = useState(true);
+  const [durationSeconds, setDurationSeconds] = useState("10");
+
+  const [enablePacketLimit, setEnablePacketLimit] = useState(false);
+  const [packetCount, setPacketCount] = useState("");
+
+  const generatedFilter = buildFilterExpression({
+    protocols: protocolFilters,
+    presets: presetFilters,
+    sourceHost,
+    destinationHost,
+    networkFilter,
+    sourcePort,
+    destinationPort,
+    portRange,
+    sourceMac,
+    destinationMac,
+    advancedFilter,
+  });
 
   async function loadAgentDetail() {
     if (!agentId) {
@@ -34,16 +168,23 @@ export function AgentDetailPage() {
     setErrorMessage(null);
 
     try {
-      const [agentResult, healthResult, interfacesResult] = await Promise.all([
-        getAgent(agentId),
-        getAgentHealth(agentId),
-        getAgentInterfaces(agentId),
-      ]);
+      const [agentResult, healthResult, interfacesResult, capturesResult] =
+        await Promise.all([
+          getAgent(agentId),
+          getAgentHealth(agentId),
+          getAgentInterfaces(agentId),
+          listAgentCaptures(agentId),
+        ]);
 
       setAgent(agentResult);
       setHealth(healthResult);
       setLastHealthCheckAt(new Date());
       setInterfaces(interfacesResult);
+      setCaptures(capturesResult);
+
+      if (!selectedInterface && interfacesResult.interfaces.length > 0) {
+        setSelectedInterface(interfacesResult.interfaces[0].name);
+      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load agent detail",
@@ -71,6 +212,134 @@ export function AgentDetailPage() {
       );
     } finally {
       setIsRefreshingHealth(false);
+    }
+  }
+
+  async function loadCaptures() {
+    if (!agentId) {
+      return;
+    }
+
+    setIsLoadingCaptures(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await listAgentCaptures(agentId);
+      setCaptures(result);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load captures",
+      );
+    } finally {
+      setIsLoadingCaptures(false);
+    }
+  }
+
+  function toggleProtocolFilter(protocol: ProtocolFilter) {
+    setProtocolFilters((current) => toggleArrayValue(current, protocol));
+  }
+
+  function togglePresetFilter(preset: PresetFilter) {
+    setPresetFilters((current) => toggleArrayValue(current, preset));
+  }
+
+  async function handleStartCapture(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!agentId) {
+      return;
+    }
+
+    if (!selectedInterface) {
+      setErrorMessage("Select an interface before starting a capture.");
+      return;
+    }
+
+    const sourcePortError = validateOptionalPort(sourcePort, "Source port");
+    if (sourcePortError) {
+      setErrorMessage(sourcePortError);
+      return;
+    }
+
+    const destinationPortError = validateOptionalPort(
+      destinationPort,
+      "Destination port",
+    );
+    if (destinationPortError) {
+      setErrorMessage(destinationPortError);
+      return;
+    }
+
+    const portRangeError = validateOptionalPortRange(portRange);
+    if (portRangeError) {
+      setErrorMessage(portRangeError);
+      return;
+    }
+
+    const parsedDuration = enableDurationLimit ? Number(durationSeconds) : 0;
+
+    if (
+      enableDurationLimit &&
+      (durationSeconds.trim() === "" ||
+        !Number.isInteger(parsedDuration) ||
+        parsedDuration <= 0)
+    ) {
+      setErrorMessage("Duration must be a positive integer when enabled.");
+      return;
+    }
+
+    const parsedPacketCount = enablePacketLimit ? Number(packetCount) : 0;
+
+    if (
+      enablePacketLimit &&
+      (packetCount.trim() === "" ||
+        !Number.isInteger(parsedPacketCount) ||
+        parsedPacketCount <= 0)
+    ) {
+      setErrorMessage("Packet count must be a positive integer when enabled.");
+      return;
+    }
+
+    setIsStartingCapture(true);
+    setErrorMessage(null);
+    setCaptureMessage(null);
+
+    try {
+      const request = {
+        interface_name: selectedInterface,
+        ...(generatedFilter ? { filter_expression: generatedFilter } : {}),
+        ...(parsedDuration > 0 ? { duration_seconds: parsedDuration } : {}),
+        ...(parsedPacketCount > 0 ? { packet_count: parsedPacketCount } : {}),
+      };
+
+      const result = await startAgentCapture(agentId, request);
+      setCaptureMessage(`Capture ${result.capture.capture_id} started.`);
+      await loadCaptures();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to start capture",
+      );
+    } finally {
+      setIsStartingCapture(false);
+    }
+  }
+
+  async function handleStopCapture(captureId: string) {
+    if (!agentId) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setCaptureMessage(null);
+
+    try {
+      await stopAgentCapture(agentId, captureId);
+      setCaptureMessage(`Stop requested for capture ${captureId}.`);
+      await loadCaptures();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to stop capture",
+      );
     }
   }
 
@@ -118,7 +387,7 @@ export function AgentDetailPage() {
       {isLoading ? (
         <div className="page-card">
           <h3>Loading agent detail...</h3>
-          <p>Reading agent metadata, health, and interfaces from the controller.</p>
+          <p>Reading agent metadata, health, interfaces, and captures.</p>
         </div>
       ) : (
         <>
@@ -144,17 +413,21 @@ export function AgentDetailPage() {
                   <div>
                     <dt>Status</dt>
                     <dd className="status-row">
-                        <span className={`status-badge ${statusClass(health.health.status)}`}>
+                      <span
+                        className={`status-badge ${statusClass(
+                          health.health.status,
+                        )}`}
+                      >
                         {health.health.status}
-                        </span>
+                      </span>
 
-                        {lastHealthCheckAt && (
+                      {lastHealthCheckAt && (
                         <span className="status-time">
-                            Last checked {lastHealthCheckAt.toLocaleString()}
+                          Last checked {lastHealthCheckAt.toLocaleString()}
                         </span>
-                        )}
+                      )}
                     </dd>
-                </div>
+                  </div>
 
                   <div>
                     <dt>Agent name</dt>
@@ -217,7 +490,8 @@ export function AgentDetailPage() {
                 <h3>Interfaces</h3>
                 <p>
                   {interfaces?.interfaces.length ?? 0} interface
-                  {(interfaces?.interfaces.length ?? 0) === 1 ? "" : "s"} available.
+                  {(interfaces?.interfaces.length ?? 0) === 1 ? "" : "s"}{" "}
+                  available.
                 </p>
               </div>
             </div>
@@ -253,15 +527,541 @@ export function AgentDetailPage() {
           </section>
 
           <section className="page-card">
-            <h3>Captures</h3>
-            <p className="muted-text">
-              Next step: add start/list/stop capture controls for this agent.
-            </p>
+            <div className="section-heading">
+              <div>
+                <h3>Start capture</h3>
+                <p>Create a remote capture session on this agent.</p>
+              </div>
+            </div>
+
+            {captureMessage && (
+              <div className="alert alert-success">{captureMessage}</div>
+            )}
+
+            <form className="capture-builder" onSubmit={handleStartCapture}>
+              <div className="capture-builder-grid">
+                <section className="capture-panel">
+                  <div className="capture-panel-header">
+                    <div>
+                      <h4>Capture target</h4>
+                      <p>Select the interface where packets should be captured.</p>
+                    </div>
+                  </div>
+
+                  <label className="field-label">
+                    Interface
+                    <select
+                      value={selectedInterface}
+                      onChange={(event) =>
+                        setSelectedInterface(event.target.value)
+                      }
+                    >
+                      <option value="">Select interface</option>
+                      {interfaces?.interfaces.map((iface) => (
+                        <option key={iface.name} value={iface.name}>
+                          {iface.name}
+                          {iface.description ? ` — ${iface.description}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </section>
+
+                <section className="capture-panel">
+                  <div className="capture-panel-header">
+                    <div>
+                      <h4>Stop conditions</h4>
+                      <p>Choose when the capture should finish automatically.</p>
+                    </div>
+                  </div>
+
+                  <div className="stop-condition-grid">
+                    <button
+                      type="button"
+                      className={`option-card compact-option-card ${
+                        enableDurationLimit ? "active" : ""
+                      }`}
+                      onClick={() =>
+                        setEnableDurationLimit((current) => !current)
+                      }
+                    >
+                      <span className="option-title">Time</span>
+                      <span className="option-description">Seconds</span>
+                    </button>
+
+                    <input
+                      value={durationSeconds}
+                      disabled={!enableDurationLimit}
+                      inputMode="numeric"
+                      placeholder="10"
+                      onChange={(event) =>
+                        setDurationSeconds(event.target.value)
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      className={`option-card compact-option-card ${
+                        enablePacketLimit ? "active" : ""
+                      }`}
+                      onClick={() =>
+                        setEnablePacketLimit((current) => !current)
+                      }
+                    >
+                      <span className="option-title">Packets</span>
+                      <span className="option-description">Count</span>
+                    </button>
+
+                    <input
+                      value={packetCount}
+                      disabled={!enablePacketLimit}
+                      inputMode="numeric"
+                      placeholder="100"
+                      onChange={(event) => setPacketCount(event.target.value)}
+                    />
+                  </div>
+                </section>
+              </div>
+
+              <details className="advanced-filter-panel">
+                <summary>
+                  <div>
+                    <span>Advanced filters</span>
+                    <small>
+                      Protocols, common traffic, IP, port, MAC, and raw BPF
+                    </small>
+                  </div>
+                </summary>
+
+                <div className="advanced-filter-content compact-filter-content">
+                  <section className="advanced-block">
+                    <h4>Protocols</h4>
+
+                    <div className="compact-option-grid">
+                      {PROTOCOL_FILTERS.map((protocol) => {
+                        const isActive = protocolFilters.includes(protocol.id);
+
+                        return (
+                          <button
+                            key={protocol.id}
+                            type="button"
+                            className={`compact-filter-button ${
+                              protocol.className
+                            } ${isActive ? "active" : ""}`}
+                            onClick={() => toggleProtocolFilter(protocol.id)}
+                          >
+                            {protocol.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="advanced-block">
+                    <h4>Common traffic</h4>
+
+                    <div className="compact-option-grid">
+                      {PRESET_FILTERS.map((preset) => {
+                        const isActive = presetFilters.includes(preset.id);
+
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            title={preset.expression}
+                            className={`compact-filter-button ${
+                              preset.className
+                            } ${isActive ? "active" : ""}`}
+                            onClick={() => togglePresetFilter(preset.id)}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="advanced-block">
+                    <h4>IP filters</h4>
+
+                    <div className="advanced-field-grid compact-field-grid">
+                      <label className="field-label">
+                        Source host
+                        <input
+                          value={sourceHost}
+                          placeholder="192.168.56.10"
+                          onChange={(event) =>
+                            setSourceHost(event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        Destination host
+                        <input
+                          value={destinationHost}
+                          placeholder="8.8.8.8"
+                          onChange={(event) =>
+                            setDestinationHost(event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        Network
+                        <input
+                          value={networkFilter}
+                          placeholder="192.168.56.0/24"
+                          onChange={(event) =>
+                            setNetworkFilter(event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="advanced-block">
+                    <h4>Port filters</h4>
+
+                    <div className="advanced-field-grid compact-field-grid">
+                      <label className="field-label">
+                        Source port
+                        <input
+                          value={sourcePort}
+                          inputMode="numeric"
+                          placeholder="12345"
+                          onChange={(event) => setSourcePort(event.target.value)}
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        Destination port
+                        <input
+                          value={destinationPort}
+                          inputMode="numeric"
+                          placeholder="443"
+                          onChange={(event) =>
+                            setDestinationPort(event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        Port range
+                        <input
+                          value={portRange}
+                          placeholder="1000-2000"
+                          onChange={(event) => setPortRange(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="advanced-block">
+                    <h4>MAC filters</h4>
+
+                    <div className="advanced-field-grid compact-field-grid">
+                      <label className="field-label">
+                        Source MAC
+                        <input
+                          value={sourceMac}
+                          placeholder="aa:bb:cc:dd:ee:ff"
+                          onChange={(event) => setSourceMac(event.target.value)}
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        Destination MAC
+                        <input
+                          value={destinationMac}
+                          placeholder="ff:ff:ff:ff:ff:ff"
+                          onChange={(event) =>
+                            setDestinationMac(event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="advanced-block">
+                    <h4>Raw BPF</h4>
+
+                    <label className="field-label">
+                      Custom expression
+                      <input
+                        value={advancedFilter}
+                        placeholder="src net 192.168.56.0/24 and not port 22"
+                        onChange={(event) =>
+                          setAdvancedFilter(event.target.value)
+                        }
+                      />
+                    </label>
+                  </section>
+                </div>
+              </details>
+
+              <div className="filter-preview premium-preview">
+                <span>Generated capture filter</span>
+                <code>{generatedFilter || "No packet filter"}</code>
+              </div>
+
+              <div className="capture-submit-row">
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={isStartingCapture || !selectedInterface}
+                >
+                  {isStartingCapture ? "Starting capture..." : "Start capture"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="page-card">
+            <div className="section-heading">
+              <div>
+                <h3>Captures</h3>
+                <p>
+                  {captures?.captures.length ?? 0} capture
+                  {(captures?.captures.length ?? 0) === 1 ? "" : "s"} known on
+                  this agent.
+                </p>
+              </div>
+
+              <button
+                className="small-button"
+                onClick={() => void loadCaptures()}
+                disabled={isLoadingCaptures}
+              >
+                {isLoadingCaptures ? "Refreshing..." : "Refresh captures"}
+              </button>
+            </div>
+
+            {!captures || captures.captures.length === 0 ? (
+              <div className="empty-state">
+                <h3>No captures found</h3>
+                <p>Start a capture to see it listed here.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Status</th>
+                      <th>Interface</th>
+                      <th>Packets</th>
+                      <th>Bytes</th>
+                      <th>Stop reason</th>
+                      <th>Created</th>
+                      <th />
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {captures.captures.map((capture) => (
+                      <tr key={capture.capture_id}>
+                        <td>
+                          <code>{capture.capture_id}</code>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`status-badge ${captureStatusClass(
+                              capture.status,
+                            )}`}
+                          >
+                            {capture.status}
+                          </span>
+                        </td>
+
+                        <td>
+                          <code>{capture.config.interface_name}</code>
+                        </td>
+
+                        <td>{capture.result.packets_captured}</td>
+                        <td>{capture.result.bytes_captured}</td>
+                        <td>{capture.result.stop_reason || "—"}</td>
+                        <td>{formatUnixTime(capture.created_at)}</td>
+
+                        <td className="table-actions">
+                          {isStoppableCapture(capture) ? (
+                            <button
+                              className="small-button danger-text"
+                              onClick={() =>
+                                void handleStopCapture(capture.capture_id)
+                              }
+                            >
+                              Stop
+                            </button>
+                          ) : (
+                            <span className="muted-text">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </>
       )}
     </div>
   );
+}
+
+function toggleArrayValue<T extends string>(values: T[], value: T) {
+  return values.includes(value)
+    ? values.filter((item) => item !== value)
+    : [...values, value];
+}
+
+function buildFilterExpression(options: {
+  protocols: ProtocolFilter[];
+  presets: PresetFilter[];
+  sourceHost: string;
+  destinationHost: string;
+  networkFilter: string;
+  sourcePort: string;
+  destinationPort: string;
+  portRange: string;
+  sourceMac: string;
+  destinationMac: string;
+  advancedFilter: string;
+}) {
+  const parts: string[] = [];
+
+  if (options.protocols.length === 1) {
+    parts.push(options.protocols[0]);
+  } else if (options.protocols.length > 1) {
+    parts.push(`(${options.protocols.join(" or ")})`);
+  }
+
+  const presetExpressions = options.presets
+    .map((presetId) => PRESET_FILTERS.find((preset) => preset.id === presetId))
+    .filter((preset): preset is (typeof PRESET_FILTERS)[number] =>
+      Boolean(preset),
+    )
+    .map((preset) => preset.expression);
+
+  if (presetExpressions.length === 1) {
+    parts.push(presetExpressions[0]);
+  } else if (presetExpressions.length > 1) {
+    parts.push(`(${presetExpressions.join(" or ")})`);
+  }
+
+  if (options.sourceHost.trim()) {
+    parts.push(`src host ${options.sourceHost.trim()}`);
+  }
+
+  if (options.destinationHost.trim()) {
+    parts.push(`dst host ${options.destinationHost.trim()}`);
+  }
+
+  if (options.networkFilter.trim()) {
+    parts.push(`net ${options.networkFilter.trim()}`);
+  }
+
+  if (options.sourcePort.trim()) {
+    parts.push(`src port ${options.sourcePort.trim()}`);
+  }
+
+  if (options.destinationPort.trim()) {
+    parts.push(`dst port ${options.destinationPort.trim()}`);
+  }
+
+  if (options.portRange.trim()) {
+    parts.push(`portrange ${options.portRange.trim()}`);
+  }
+
+  if (options.sourceMac.trim()) {
+    parts.push(`ether src ${options.sourceMac.trim()}`);
+  }
+
+  if (options.destinationMac.trim()) {
+    parts.push(`ether dst ${options.destinationMac.trim()}`);
+  }
+
+  if (options.advancedFilter.trim()) {
+    parts.push(`(${options.advancedFilter.trim()})`);
+  }
+
+  return parts.join(" and ");
+}
+
+function validateOptionalPort(value: string, label: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    return `${label} must be a number between 1 and 65535.`;
+  }
+
+  return null;
+}
+
+function validateOptionalPortRange(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts = trimmed.split("-");
+
+  if (parts.length !== 2) {
+    return "Port range must use format start-end, for example 1000-2000.";
+  }
+
+  const start = Number(parts[0]);
+  const end = Number(parts[1]);
+
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start <= 0 ||
+    end <= 0 ||
+    start > 65535 ||
+    end > 65535 ||
+    start > end
+  ) {
+    return "Port range must be between 1 and 65535 and start must be lower than end.";
+  }
+
+  return null;
+}
+
+function isStoppableCapture(capture: RemoteCaptureSessionInfo) {
+  const status = capture.status.toLowerCase();
+  return status === "running" || status === "starting";
+}
+
+function captureStatusClass(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (normalized === "completed") {
+    return "status-good";
+  }
+
+  if (normalized === "running" || normalized === "starting") {
+    return "status-active";
+  }
+
+  if (normalized === "stopping") {
+    return "status-warning";
+  }
+
+  if (normalized === "failed") {
+    return "status-danger";
+  }
+
+  return "status-neutral";
 }
 
 function formatUnixTime(value: number) {
@@ -275,7 +1075,11 @@ function formatUnixTime(value: number) {
 function statusClass(status: string) {
   const normalized = status.toLowerCase();
 
-  if (normalized === "ok" || normalized === "healthy" || normalized === "running") {
+  if (
+    normalized === "ok" ||
+    normalized === "healthy" ||
+    normalized === "running"
+  ) {
     return "status-good";
   }
 

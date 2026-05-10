@@ -107,3 +107,90 @@ export async function getAgentInterfaces(
 ): Promise<AgentInterfacesResponse> {
   return requestJson<AgentInterfacesResponse>(`/api/agents/${agentId}/interfaces`);
 }
+
+export type RemoteCaptureRequest = {
+  interface_name: string;
+  filter_expression?: string;
+  packet_count?: number;
+  duration_seconds?: number;
+};
+
+export type RemoteCaptureConfig = {
+  interface_name: string;
+  output_file: string;
+  filter_expression: string;
+  packet_count: number;
+  duration_seconds: number;
+  live_output: boolean;
+};
+
+export type RemoteCaptureResult = {
+  success: boolean;
+  interface_name: string;
+  output_file: string;
+  filter_expression: string;
+  packets_captured: number;
+  bytes_captured: number;
+  stop_reason: string;
+  start_time: number;
+  end_time: number;
+  error_message: string;
+};
+
+export type RemoteCaptureSessionInfo = {
+  capture_id: string;
+  status: string;
+  stop_requested: boolean;
+  config: RemoteCaptureConfig;
+  result: RemoteCaptureResult;
+  created_at: number;
+  started_at: number;
+  finished_at: number;
+};
+
+export type AgentCaptureResponse = {
+  agent: KnownAgent;
+  capture: RemoteCaptureSessionInfo;
+};
+
+export type AgentCapturesResponse = {
+  agent: KnownAgent;
+  captures: RemoteCaptureSessionInfo[];
+};
+
+export async function startAgentCapture(
+  agentId: string,
+  request: RemoteCaptureRequest,
+): Promise<AgentCaptureResponse> {
+  return requestJson<AgentCaptureResponse>(`/api/agents/${agentId}/captures`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function listAgentCaptures(
+  agentId: string,
+): Promise<AgentCapturesResponse> {
+  return requestJson<AgentCapturesResponse>(`/api/agents/${agentId}/captures`);
+}
+
+export async function getAgentCapture(
+  agentId: string,
+  captureId: string,
+): Promise<AgentCaptureResponse> {
+  return requestJson<AgentCaptureResponse>(
+    `/api/agents/${agentId}/captures/${captureId}`,
+  );
+}
+
+export async function stopAgentCapture(
+  agentId: string,
+  captureId: string,
+): Promise<AgentCaptureResponse> {
+  return requestJson<AgentCaptureResponse>(
+    `/api/agents/${agentId}/captures/${captureId}/stop`,
+    {
+      method: "POST",
+    },
+  );
+}
