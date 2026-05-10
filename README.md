@@ -24,19 +24,20 @@ The long-term goal is a distributed system where multiple agents run on monitore
   - capture creation
   - capture status
   - capture stop
-- controller backend skeleton with in-memory agent registry
+- controller backend with persistent known-agent registry stored on disk
 - controller HTTP API for:
   - listing known agents
   - adding agents
+  - deleting one known agent
+  - clearing all known-agent storage
   - querying agent health through the controller
   - querying agent interfaces through the controller
+  - starting, listing, querying, and stopping remote captures through the controller
 
 ### Not yet implemented
 
 - controller web UI
 - agent auto-discovery
-- controller persistence for known agents
-- controller-managed remote capture lifecycle endpoints
 - PCAP download through the controller
 
 ---
@@ -91,10 +92,11 @@ Central management component.
 
 Current responsibilities:
 
-- maintain a list of known agents in memory
+- maintain a list of known agents with JSON-file persistence
 - contact agents over HTTP/JSON
 - expose its own HTTP API for management
 - proxy agent health and interface queries
+- manage remote capture lifecycle through the controller API
 
 Planned responsibilities:
 
@@ -125,6 +127,7 @@ Planned responsibilities:
 │   ├── controller_app/
 │   └── sniffer/
 ├── captures/
+├── data/
 └── build/
 ```
 
@@ -330,6 +333,18 @@ Example request body:
 GET /api/agents/{id}
 ```
 
+### Delete one known agent
+
+```http
+DELETE /api/agents/{id}
+```
+
+### Clear all known-agent storage
+
+```http
+DELETE /api/agents
+```
+
 ### Query agent health through the controller
 
 ```http
@@ -340,6 +355,31 @@ GET /api/agents/{id}/health
 
 ```http
 GET /api/agents/{id}/interfaces
+```
+
+### Start remote capture through controller
+
+```http
+POST /api/agents/{id}/captures
+Content-Type: application/json
+```
+
+### List remote captures through controller
+
+```http
+GET /api/agents/{id}/captures
+```
+
+### Get one remote capture through controller
+
+```http
+GET /api/agents/{id}/captures/{captureId}
+```
+
+### Stop one remote capture through controller
+
+```http
+POST /api/agents/{id}/captures/{captureId}/stop
 ```
 
 ---
@@ -388,17 +428,33 @@ curl http://127.0.0.1:8090/api/agents/agent-0001/health
 curl http://127.0.0.1:8090/api/agents/agent-0001/interfaces
 ```
 
+### Start a remote capture through the controller
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures \
+  -H "Content-Type: application/json" \
+  -d '{
+    "interface_name": "YOUR_INTERFACE",
+    "duration_seconds": 10
+  }'
+```
+
+### Clear all stored agents
+
+```bash
+curl -X DELETE http://127.0.0.1:8090/api/agents
+```
+
 ---
 
 ## Development direction
 
 Planned next steps:
 
-1. extend the controller API to start, monitor, and stop remote captures
-2. add a controller-side web interface
-3. implement local discovery of agents
-4. add persistence for known agents and controller state
-5. add PCAP download support
+1. add a controller-side web interface
+2. implement local discovery of agents
+3. add PCAP download support
+4. extend persistence beyond known-agent registry if needed
 
 ---
 
@@ -415,7 +471,7 @@ Planned next steps:
 ## Notes
 
 - Packet capture typically requires elevated privileges, so `agent_server` and `packet_sniffer` may need to be run with `sudo`.
-- The controller currently uses **in-memory** storage only. Restarting the controller clears the known-agent list.
+- The controller persists known agents to `data/known_agents.json` and reloads them on startup.
 - Captured `.pcap` files are currently stored locally by the agent under the `captures/` directory.
 
 ---

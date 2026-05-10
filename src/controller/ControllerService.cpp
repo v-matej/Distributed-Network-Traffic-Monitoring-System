@@ -27,6 +27,15 @@ bool ControllerService::remove_agent(const std::string& agent_id, KnownAgent& re
     return agent_registry_->remove_agent(agent_id, removed_agent, error_message);
 }
 
+bool ControllerService::clear_agents(std::size_t& cleared_count, std::string& error_message) {
+    if (!agent_registry_) {
+        error_message = "Agent registry is not initialized";
+        return false;
+    }
+
+    return agent_registry_->clear_agents(cleared_count, error_message);
+}
+
 std::vector<KnownAgent> ControllerService::list_agents() const {
     if (!agent_registry_) {
         return {};

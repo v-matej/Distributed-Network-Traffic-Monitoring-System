@@ -3,6 +3,7 @@
 #include "controller/AgentRegistry.hpp"
 #include "controller/ControllerTypes.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,6 +17,7 @@ public:
 
     bool add_agent(const AddAgentRequest& request, KnownAgent& added_agent, std::string& error_message);
     bool remove_agent(const std::string& agent_id, KnownAgent& removed_agent, std::string& error_message);
+    bool clear_agents(std::size_t& cleared_count, std::string& error_message);
     std::vector<KnownAgent> list_agents() const;
     std::optional<KnownAgent> get_agent(const std::string& agent_id) const;
 

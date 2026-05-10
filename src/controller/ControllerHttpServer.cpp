@@ -75,6 +75,25 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 201;
     });
 
+    server_.Delete("/api/agents", [this](const httplib::Request&, httplib::Response& res) {
+        std::size_t cleared_count = 0;
+        std::string clear_error;
+        if (!controller_service_->clear_agents(cleared_count, clear_error)) {
+            res.set_content(make_error_json(clear_error), "application/json");
+            res.status = 500;
+            return;
+        }
+
+        const auto message =
+            std::string("{\n")
+            + "    \"status\": \"ok\",\n"
+            + "    \"message\": \"Cleared all registered agents from controller storage\",\n"
+            + "    \"agents_cleared\": " + std::to_string(cleared_count) + "\n"
+            + "}";
+        res.set_content(message, "application/json");
+        res.status = 200;
+    });
+
     server_.Delete(R"(/api/agents/([A-Za-z0-9_-]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
 

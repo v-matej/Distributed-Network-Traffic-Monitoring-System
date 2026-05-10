@@ -45,3 +45,6 @@ Thumbs.db
 
 # pcap files (capture output)
 *.pcap
+
+# persistant storage
+data/
