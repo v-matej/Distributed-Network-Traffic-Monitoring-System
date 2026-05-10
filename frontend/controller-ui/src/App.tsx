@@ -4,6 +4,8 @@ import { BrowserRouter } from "react-router-dom";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
+import { CapturesPage } from "./pages/CapturesPage";
+import { CaptureDetailPage } from "./pages/CaptureDetailPage";
 
 function App() {
   return (
@@ -33,9 +35,7 @@ function App() {
               <p>Controller dashboard for managing agents and captures.</p>
             </div>
 
-            <div className="status-pill">
-              Controller API
-            </div>
+            <div className="status-pill">Controller API</div>
           </header>
 
           <section className="content">
@@ -44,15 +44,10 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/agents/:agentId" element={<AgentDetailPage />} />
-
+              <Route path="/captures" element={<CapturesPage />} />
               <Route
-                path="/captures"
-                element={
-                  <PlaceholderPage
-                    title="Captures"
-                    description="Global capture overview will be added after the agent detail flow."
-                  />
-                }
+                path="/captures/:agentId/:captureId"
+                element={<CaptureDetailPage />}
               />
 
               <Route
