@@ -143,6 +143,11 @@ export function AgentDetailPage() {
   const [enablePacketLimit, setEnablePacketLimit] = useState(false);
   const [packetCount, setPacketCount] = useState("");
 
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [activeCaptureSeenAtMs, setActiveCaptureSeenAtMs] = useState<
+    Record<string, number>
+  >({});
+
   const generatedFilter = buildFilterExpression({
     protocols: protocolFilters,
     presets: presetFilters,
@@ -156,6 +161,9 @@ export function AgentDetailPage() {
     destinationMac,
     advancedFilter,
   });
+
+  const activeCaptures = captures?.captures.filter(isActiveCapture) ?? [];
+  const hasActiveCaptures = activeCaptures.length > 0;
 
   async function loadAgentDetail() {
     if (!agentId) {
@@ -200,7 +208,6 @@ export function AgentDetailPage() {
     }
 
     setIsRefreshingHealth(true);
-    setErrorMessage(null);
 
     try {
       const healthResult = await getAgentHealth(agentId);
@@ -215,23 +222,29 @@ export function AgentDetailPage() {
     }
   }
 
-  async function loadCaptures() {
+  async function loadCaptures(options: { silent?: boolean } = {}) {
     if (!agentId) {
       return;
     }
 
-    setIsLoadingCaptures(true);
-    setErrorMessage(null);
+    if (!options.silent) {
+      setIsLoadingCaptures(true);
+      setErrorMessage(null);
+    }
 
     try {
       const result = await listAgentCaptures(agentId);
       setCaptures(result);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load captures",
-      );
+      if (!options.silent) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to load captures",
+        );
+      }
     } finally {
-      setIsLoadingCaptures(false);
+      if (!options.silent) {
+        setIsLoadingCaptures(false);
+      }
     }
   }
 
@@ -313,8 +326,30 @@ export function AgentDetailPage() {
       };
 
       const result = await startAgentCapture(agentId, request);
+      const firstSeenAtMs = Date.now();
+
+      setNowMs(firstSeenAtMs);
+      setActiveCaptureSeenAtMs((current) => ({
+        ...current,
+        [result.capture.capture_id]: firstSeenAtMs,
+      }));
+
+      setCaptures((current) => {
+        if (!current) {
+          return {
+            agent: result.agent,
+            captures: [result.capture],
+          };
+        }
+
+        return {
+          ...current,
+          captures: upsertCapture(current.captures, result.capture),
+        };
+      });
+
       setCaptureMessage(`Capture ${result.capture.capture_id} started.`);
-      await loadCaptures();
+      void loadCaptures({ silent: true });
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to start capture",
@@ -347,6 +382,72 @@ export function AgentDetailPage() {
     void loadAgentDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
+
+  useEffect(() => {
+    if (!agentId) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshHealth();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId]);
+
+  useEffect(() => {
+    if (!agentId || !hasActiveCaptures) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadCaptures({ silent: true });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, hasActiveCaptures]);
+
+  useEffect(() => {
+    if (!hasActiveCaptures) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasActiveCaptures]);
+
+  useEffect(() => {
+    const activeIds = new Set(activeCaptures.map((capture) => capture.capture_id));
+    const firstSeenAtMs = Date.now();
+
+    setActiveCaptureSeenAtMs((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const capture of activeCaptures) {
+        if (!next[capture.capture_id]) {
+          next[capture.capture_id] = firstSeenAtMs;
+          changed = true;
+        }
+      }
+
+      for (const captureId of Object.keys(next)) {
+        if (!activeIds.has(captureId)) {
+          delete next[captureId];
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [captures]);
 
   if (!agentId) {
     return (
@@ -585,7 +686,7 @@ export function AgentDetailPage() {
                         setEnableDurationLimit((current) => !current)
                       }
                     >
-                      <span className="option-title">Time</span>
+                      <span className="option-title">Time limit</span>
                       <span className="option-description">Seconds</span>
                     </button>
 
@@ -594,9 +695,9 @@ export function AgentDetailPage() {
                       disabled={!enableDurationLimit}
                       inputMode="numeric"
                       placeholder="10"
-                      onChange={(event) =>
-                        setDurationSeconds(event.target.value)
-                      }
+                      aria-label="Duration limit in seconds"
+                      title="Duration limit in seconds"
+                      onChange={(event) => setDurationSeconds(event.target.value)}
                     />
 
                     <button
@@ -608,7 +709,7 @@ export function AgentDetailPage() {
                         setEnablePacketLimit((current) => !current)
                       }
                     >
-                      <span className="option-title">Packets</span>
+                      <span className="option-title">Packet limit</span>
                       <span className="option-description">Count</span>
                     </button>
 
@@ -617,6 +718,8 @@ export function AgentDetailPage() {
                       disabled={!enablePacketLimit}
                       inputMode="numeric"
                       placeholder="100"
+                      aria-label="Packet count limit"
+                      title="Packet count limit"
                       onChange={(event) => setPacketCount(event.target.value)}
                     />
                   </div>
@@ -837,6 +940,129 @@ export function AgentDetailPage() {
               </button>
             </div>
 
+            {hasActiveCaptures && (
+              <div className="active-capture-grid">
+                {activeCaptures.map((capture) => {
+                  const firstSeenAtMs =
+                    activeCaptureSeenAtMs[capture.capture_id] ?? nowMs;
+                  const visibleSeconds = getVisibleElapsedSeconds(
+                    firstSeenAtMs,
+                    nowMs,
+                  );
+                  const progressPercent = getDurationProgressPercent(
+                    capture,
+                    visibleSeconds,
+                  );
+                  const isPastDurationLimit = isCapturePastDurationLimit(
+                    capture,
+                    visibleSeconds,
+                  );
+                  const displayStatus = isPastDurationLimit
+                    ? "finalizing"
+                    : capture.status;
+
+                  return (
+                    <article
+                      className="active-capture-card"
+                      key={capture.capture_id}
+                    >
+                      <div className="active-capture-topline">
+                        <div>
+                          <span className="active-capture-label">
+                            Active capture
+                          </span>
+                          <h4>{capture.capture_id}</h4>
+                        </div>
+
+                        <span
+                          className={`status-badge ${captureStatusClass(
+                            displayStatus,
+                          )}`}
+                        >
+                          {displayStatus}
+                        </span>
+                      </div>
+
+                      <div className="active-capture-stats">
+                        <div className="active-capture-stat">
+                          <span>UI timer</span>
+                          <strong>
+                            {formatDurationSeconds(
+                              getDisplayedElapsedSeconds(
+                                capture,
+                                visibleSeconds,
+                              ),
+                            )}
+                            {isPastDurationLimit ? "+" : ""}
+                          </strong>
+                        </div>
+
+                        <div className="active-capture-stat">
+                          <span>Interface</span>
+                          <strong>{capture.config.interface_name || "—"}</strong>
+                        </div>
+
+                        <div className="active-capture-stat">
+                          <span>Time limit</span>
+                          <strong>
+                            {capture.config.duration_seconds > 0
+                              ? `${capture.config.duration_seconds} seconds`
+                              : "No time limit"}
+                          </strong>
+                        </div>
+
+                        <div className="active-capture-stat">
+                          <span>Packet limit</span>
+                          <strong>
+                            {capture.config.packet_count > 0
+                              ? `${capture.config.packet_count} packets`
+                              : "No packet limit"}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {progressPercent !== null && (
+                        <div className="progress-block">
+                          <div className="progress-label">
+                            <span>Duration progress</span>
+                            <span>{progressPercent}%</span>
+                          </div>
+
+                          <div className="progress-track">
+                            <div
+                              className="progress-fill"
+                              style={{ width: `${progressPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="active-capture-meta">
+                        <div>
+                          <span>Filter</span>
+                          <code>
+                            {capture.config.filter_expression ||
+                              "No packet filter"}
+                          </code>
+                        </div>
+
+                        <div>
+                          <span>Output</span>
+                          <code>{capture.config.output_file || "—"}</code>
+                        </div>
+                      </div>
+
+                      <p className="active-capture-note">
+                        UI timer starts when this page receives the active
+                        capture. Packet and byte counters update when the
+                        backend finalizes the capture.
+                      </p>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
             {!captures || captures.captures.length === 0 ? (
               <div className="empty-state">
                 <h3>No captures found</h3>
@@ -908,6 +1134,21 @@ export function AgentDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+function upsertCapture(
+  captures: RemoteCaptureSessionInfo[],
+  capture: RemoteCaptureSessionInfo,
+) {
+  const exists = captures.some((item) => item.capture_id === capture.capture_id);
+
+  if (!exists) {
+    return [capture, ...captures];
+  }
+
+  return captures.map((item) =>
+    item.capture_id === capture.capture_id ? capture : item,
   );
 }
 
@@ -1039,21 +1280,36 @@ function validateOptionalPortRange(value: string) {
 
 function isStoppableCapture(capture: RemoteCaptureSessionInfo) {
   const status = capture.status.toLowerCase();
-  return status === "running" || status === "starting";
+  return status === "pending" || status === "starting" || status === "running";
+}
+
+function isActiveCapture(capture: RemoteCaptureSessionInfo) {
+  const status = capture.status.toLowerCase();
+
+  return (
+    status === "pending" ||
+    status === "starting" ||
+    status === "running" ||
+    status === "stopping"
+  );
 }
 
 function captureStatusClass(status: string) {
   const normalized = status.toLowerCase();
 
-  if (normalized === "completed") {
+  if (normalized === "completed" || normalized === "stopped") {
     return "status-good";
   }
 
-  if (normalized === "running" || normalized === "starting") {
+  if (
+    normalized === "pending" ||
+    normalized === "running" ||
+    normalized === "starting"
+  ) {
     return "status-active";
   }
 
-  if (normalized === "stopping") {
+  if (normalized === "stopping" || normalized === "finalizing") {
     return "status-warning";
   }
 
@@ -1062,6 +1318,62 @@ function captureStatusClass(status: string) {
   }
 
   return "status-neutral";
+}
+
+function getVisibleElapsedSeconds(firstSeenAtMs: number, nowMs: number) {
+  return Math.max(0, Math.floor((nowMs - firstSeenAtMs) / 1000));
+}
+
+function getDurationProgressPercent(
+  capture: RemoteCaptureSessionInfo,
+  elapsedSeconds: number,
+) {
+  if (capture.config.duration_seconds <= 0) {
+    return null;
+  }
+
+  return Math.min(
+    100,
+    Math.round((elapsedSeconds / capture.config.duration_seconds) * 100),
+  );
+}
+
+function isCapturePastDurationLimit(
+  capture: RemoteCaptureSessionInfo,
+  elapsedSeconds: number,
+) {
+  if (capture.config.duration_seconds <= 0) {
+    return false;
+  }
+
+  const status = capture.status.toLowerCase();
+  if (status !== "pending" && status !== "starting" && status !== "running") {
+    return false;
+  }
+
+  return elapsedSeconds >= capture.config.duration_seconds;
+}
+
+function getDisplayedElapsedSeconds(
+  capture: RemoteCaptureSessionInfo,
+  elapsedSeconds: number,
+) {
+  if (capture.config.duration_seconds <= 0) {
+    return elapsedSeconds;
+  }
+
+  return Math.min(elapsedSeconds, capture.config.duration_seconds);
+}
+
+function formatDurationSeconds(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes <= 0) {
+    return `${seconds}s`;
+  }
+
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
 
 function formatUnixTime(value: number) {
