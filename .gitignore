@@ -1,3 +1,9 @@
+# Root / legacy build directories
+build/
+build_test/
+build_controller/
+cmake-build*/
+
 # Backend build directories
 backend/build/
 backend/build_test/
@@ -6,11 +12,18 @@ backend/cmake-build*/
 backend/CMakeFiles/
 backend/CMakeCache.txt
 backend/cmake_install.cmake
-
-# Backend CMake generated files
 backend/compile_commands.json
 
-# Backend executables and binaries
+# Backend runtime/generated data
+backend/data/*
+!backend/data/.gitkeep
+backend/captures/*
+!backend/captures/.gitkeep
+
+# Packet capture output
+*.pcap
+
+# Executables and binaries
 *.out
 *.exe
 *.app
@@ -42,18 +55,10 @@ Thumbs.db
 *.tmp
 *.swp
 
-# Packet capture output
-*.pcap
-
-# Backend persistent storage
-backend/data/
-
 # Frontend dependencies and build output
 frontend/controller-ui/node_modules/
 frontend/controller-ui/dist/
 frontend/controller-ui/.vite/
-
-# Optional environment files for frontend later
 frontend/controller-ui/.env
 frontend/controller-ui/.env.local
 frontend/controller-ui/.env.*.local
