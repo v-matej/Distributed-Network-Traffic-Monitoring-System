@@ -6,14 +6,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(PROJECT_INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/agent/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/controller/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/sniffer/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
+)
+
 add_library(sniffer_core STATIC
-    src/sniffer/capture.cpp
+    sniffer/src/capture.cpp
 )
 
 target_include_directories(sniffer_core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${PROJECT_INCLUDE_DIRS}
 )
 
 target_compile_options(sniffer_core PRIVATE
@@ -25,15 +31,14 @@ target_link_libraries(sniffer_core
 )
 
 add_library(agent_core STATIC
-    src/agent/AgentCaptureManager.cpp
-    src/agent/AgentService.cpp
-    src/agent/AgentJsonMapper.cpp
+    agent/src/AgentCaptureManager.cpp
+    agent/src/AgentService.cpp
+    agent/src/AgentJsonMapper.cpp
 )
 
 target_include_directories(agent_core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${PROJECT_INCLUDE_DIRS}
 )
 
 target_compile_options(agent_core PRIVATE
@@ -45,13 +50,12 @@ target_link_libraries(agent_core
 )
 
 add_library(agent_http STATIC
-    src/agent/AgentHttpServer.cpp
+    agent/src/AgentHttpServer.cpp
 )
 
 target_include_directories(agent_http
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${PROJECT_INCLUDE_DIRS}
 )
 
 target_compile_options(agent_http PRIVATE
@@ -62,36 +66,29 @@ target_link_libraries(agent_http
     PUBLIC agent_core
 )
 
-
 add_library(controller_core STATIC
-    src/controller/AgentRegistry.cpp
-    src/controller/HttpAgentClient.cpp
-    src/controller/ControllerService.cpp
-    src/controller/ControllerJsonMapper.cpp
+    controller/src/AgentRegistry.cpp
+    controller/src/HttpAgentClient.cpp
+    controller/src/ControllerService.cpp
+    controller/src/ControllerJsonMapper.cpp
 )
 
 target_include_directories(controller_core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${PROJECT_INCLUDE_DIRS}
 )
 
 target_compile_options(controller_core PRIVATE
     -Wall -Wextra -Wpedantic
 )
 
-target_link_libraries(controller_core
-    PUBLIC
-)
-
 add_library(controller_http STATIC
-    src/controller/ControllerHttpServer.cpp
+    controller/src/ControllerHttpServer.cpp
 )
 
 target_include_directories(controller_http
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${PROJECT_INCLUDE_DIRS}
 )
 
 target_compile_options(controller_http PRIVATE
@@ -103,8 +100,8 @@ target_link_libraries(controller_http
 )
 
 add_executable(packet_sniffer
-    src/cli/main.cpp
-    src/cli/cli.cpp
+    apps/packet_sniffer/main.cpp
+    apps/packet_sniffer/cli.cpp
 )
 
 target_compile_options(packet_sniffer PRIVATE
@@ -116,7 +113,7 @@ target_link_libraries(packet_sniffer
 )
 
 add_executable(agent_server
-    src/agent_app/main.cpp
+    apps/agent_server/main.cpp
 )
 
 target_compile_options(agent_server PRIVATE
@@ -128,7 +125,7 @@ target_link_libraries(agent_server
 )
 
 add_executable(controller_server
-    src/controller_app/main.cpp
+    apps/controller_server/main.cpp
 )
 
 target_compile_options(controller_server PRIVATE

@@ -1,21 +1,33 @@
-# Build directories
+# Root / legacy build directories
 build/
 build_test/
 build_controller/
 cmake-build*/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
 
-# CMake generated files
-compile_commands.json
+# Backend build directories
+backend/build/
+backend/build_test/
+backend/build_controller/
+backend/cmake-build*/
+backend/CMakeFiles/
+backend/CMakeCache.txt
+backend/cmake_install.cmake
+backend/compile_commands.json
 
-# Executables
+# Backend runtime/generated data
+backend/data/*
+!backend/data/.gitkeep
+backend/captures/*
+!backend/captures/.gitkeep
+
+# Packet capture output
+*.pcap
+
+# Executables and binaries
 *.out
 *.exe
 *.app
 *.bin
-packet_sniffer
 
 # Object files
 *.o
@@ -28,7 +40,7 @@ packet_sniffer
 *.dll
 *.dylib
 
-# Debug files
+# Debug and log files
 *.log
 *.gdb
 
@@ -43,8 +55,10 @@ Thumbs.db
 *.tmp
 *.swp
 
-# pcap files (capture output)
-*.pcap
-
-# persistant storage
-data/
+# Frontend dependencies and build output
+frontend/controller-ui/node_modules/
+frontend/controller-ui/dist/
+frontend/controller-ui/.vite/
+frontend/controller-ui/.env
+frontend/controller-ui/.env.local
+frontend/controller-ui/.env.*.local

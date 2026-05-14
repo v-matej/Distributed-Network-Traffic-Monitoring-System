@@ -135,10 +135,10 @@ bool AgentHttpServer::start(std::string& error_message) {
             return;
         }
 
-        const std::string body(
+        const std::string body{
             std::istreambuf_iterator<char>(input),
             std::istreambuf_iterator<char>()
-        );
+        };
 
         res.set_header(
             "Content-Disposition",
