@@ -60,18 +60,4 @@ function App() {
   );
 }
 
-type PlaceholderPageProps = {
-  title: string;
-  description: string;
-};
-
-function PlaceholderPage({ title, description }: PlaceholderPageProps) {
-  return (
-    <div className="page-card">
-      <h2>{title}</h2>
-      <p>{description}</p>
-    </div>
-  );
-}
-
 export default App;

@@ -55,7 +55,7 @@ frontend-install:
 
 frontend-dev:
 	@test -f $(FRONTEND_DIR)/package.json || (echo "Frontend not initialized. Run: npm create vite@latest frontend/controller-ui -- --template react-ts" && exit 1)
-	cd $(FRONTEND_DIR) && npm run dev
+	cd $(FRONTEND_DIR) && npm run dev -- --host 0.0.0.0
 
 frontend-build:
 	@test -f $(FRONTEND_DIR)/package.json || (echo "Frontend not initialized. Run: npm create vite@latest frontend/controller-ui -- --template react-ts" && exit 1)

@@ -20,19 +20,10 @@ import {
   formatUnixTime,
 } from "../lib/format";
 
-import { getAgentCapture, stopAgentCapture } from "../lib/api";
-
 import type {
   KnownAgent,
   RemoteCaptureSessionInfo,
 } from "../lib/api";
-
-type CaptureDerivedStats = {
-  durationSeconds: number | null;
-  averageThroughput: string;
-  packetRate: string;
-  averagePacketSize: string;
-};
 
 export function CaptureDetailPage() {
   const { agentId, captureId } = useParams();
