@@ -4,6 +4,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -18,6 +21,16 @@ std::string make_error_json(const std::string& message) {
     error_json["status"] = "error";
     error_json["message"] = message;
     return error_json.dump(4);
+}
+
+bool is_downloadable_capture_status(CaptureSessionStatus status) {
+    return status == CaptureSessionStatus::Completed ||
+           status == CaptureSessionStatus::Stopped ||
+           status == CaptureSessionStatus::Failed;
+}
+
+std::string make_pcap_download_filename(const std::string& capture_id) {
+    return capture_id + ".pcap";
 }
 }  // namespace
 
@@ -89,6 +102,49 @@ bool AgentHttpServer::start(std::string& error_message) {
     server_.Get("/captures", [this](const httplib::Request&, httplib::Response& res) {
         const auto sessions = agent_service_->list_capture_sessions();
         res.set_content(to_json(sessions), "application/json");
+        res.status = 200;
+    });
+
+        server_.Get(R"(/captures/([A-Za-z0-9\-_]+)/download)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto capture_id = req.matches[1].str();
+        const auto session = agent_service_->get_capture_session(capture_id);
+
+        if (!session.has_value()) {
+            res.set_content(make_error_json("Capture session not found"), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        if (!is_downloadable_capture_status(session->status)) {
+            res.set_content(make_error_json("Capture file is not ready for download yet"), "application/json");
+            res.status = 409;
+            return;
+        }
+
+        const std::filesystem::path output_file(session->config.output_file);
+        if (!std::filesystem::exists(output_file) || !std::filesystem::is_regular_file(output_file)) {
+            res.set_content(make_error_json("Capture file not found on agent"), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        std::ifstream input(output_file, std::ios::binary);
+        if (!input) {
+            res.set_content(make_error_json("Failed to open capture file on agent"), "application/json");
+            res.status = 500;
+            return;
+        }
+
+        const std::string body(
+            std::istreambuf_iterator<char>(input),
+            std::istreambuf_iterator<char>()
+        );
+
+        res.set_header(
+            "Content-Disposition",
+            "attachment; filename=\"" + make_pcap_download_filename(capture_id) + "\""
+        );
+        res.set_content(body, "application/vnd.tcpdump.pcap");
         res.status = 200;
     });
 

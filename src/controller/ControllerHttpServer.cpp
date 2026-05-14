@@ -233,6 +233,38 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 202;
     });
 
+    server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+)/download)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        KnownAgent agent;
+        std::string content;
+        std::string content_type;
+        std::string route_error_message;
+        int response_status = 0;
+
+        if (!controller_service_->download_agent_capture(
+                agent_id,
+                capture_id,
+                agent,
+                content,
+                content_type,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_capture_proxy_status(response_status);
+            return;
+        }
+
+        res.set_header(
+            "Content-Disposition",
+            "attachment; filename=\"" + capture_id + ".pcap\""
+        );
+        res.set_content(content, content_type.empty() ? "application/vnd.tcpdump.pcap" : content_type);
+        res.status = 200;
+    });
+
     server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();

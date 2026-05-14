@@ -179,6 +179,35 @@ bool HttpAgentClient::stop_capture(
     return true;
 }
 
+bool HttpAgentClient::download_capture(
+    const std::string& capture_id,
+    std::string& content,
+    std::string& content_type,
+    std::string& error_message,
+    int& response_status
+) {
+    httplib::Client client(endpoint_.host, endpoint_.port);
+    configure_client(client);
+    client.set_read_timeout(60, 0);
+
+    const auto path = "/captures/" + capture_id + "/download";
+    const auto response = client.Get(path);
+
+    if (!response || response->status != 200) {
+        return set_error_from_response(response, path, base_url(), error_message, response_status);
+    }
+
+    response_status = 200;
+    content = response->body;
+    content_type = response->get_header_value("Content-Type");
+
+    if (content_type.empty()) {
+        content_type = "application/vnd.tcpdump.pcap";
+    }
+
+    return true;
+}
+
 std::string HttpAgentClient::base_url() const {
     return "http://" + endpoint_.host + ":" + std::to_string(endpoint_.port);
 }

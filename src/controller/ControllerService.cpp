@@ -194,6 +194,37 @@ bool ControllerService::stop_agent_capture(
     return true;
 }
 
+bool ControllerService::download_agent_capture(
+    const std::string& agent_id,
+    const std::string& capture_id,
+    KnownAgent& agent,
+    std::string& content,
+    std::string& content_type,
+    std::string& error_message,
+    int& response_status
+) const {
+    const auto known_agent = get_agent(agent_id);
+    if (!known_agent.has_value()) {
+        response_status = 404;
+        error_message = "Agent not found";
+        return false;
+    }
+
+    HttpAgentClient agent_client(endpoint_from_agent(*known_agent));
+    if (!agent_client.download_capture(
+            capture_id,
+            content,
+            content_type,
+            error_message,
+            response_status
+        )) {
+        return false;
+    }
+
+    agent = *known_agent;
+    return true;
+}
+
 AgentEndpoint ControllerService::endpoint_from_agent(const KnownAgent& agent) const {
     AgentEndpoint endpoint;
     endpoint.host = agent.host;

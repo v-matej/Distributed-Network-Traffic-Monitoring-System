@@ -49,6 +49,14 @@ public:
         std::string& error_message,
         int& response_status
     ) = 0;
+
+    virtual bool download_capture(
+        const std::string& capture_id,
+        std::string& content,
+        std::string& content_type,
+        std::string& error_message,
+        int& response_status
+    ) = 0;
 };
 
 }  // namespace controller
