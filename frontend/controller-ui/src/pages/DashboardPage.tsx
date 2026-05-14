@@ -2,6 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
+  captureStatusClass,
+  isActiveCapture,
+  isCompletedCapture,
+  isFailedCapture,
+} from "../lib/captureUtils";
+
+import {
+  getAgentDisplayName,
+  isHealthyStatus,
+  statusClass,
+} from "../lib/agentUtils";
+
+import { formatBytes, formatUnixTime } from "../lib/format";
+
+import {
   getAgentHealth,
   listAgentCaptures,
   listAgents,
@@ -398,102 +413,4 @@ export function DashboardPage() {
       )}
     </div>
   );
-}
-
-function getAgentDisplayName(agent: KnownAgent) {
-  return agent.display_name || agent.agent_id;
-}
-
-function isHealthyStatus(status: string) {
-  const normalized = status.toLowerCase();
-  return (
-    normalized === "ok" ||
-    normalized === "healthy" ||
-    normalized === "running"
-  );
-}
-
-function isActiveCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-
-  return (
-    status === "pending" ||
-    status === "starting" ||
-    status === "running" ||
-    status === "stopping"
-  );
-}
-
-function isCompletedCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-  return status === "completed" || status === "stopped";
-}
-
-function isFailedCapture(capture: RemoteCaptureSessionInfo) {
-  return capture.status.toLowerCase() === "failed";
-}
-
-function statusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (isHealthyStatus(normalized)) {
-    return "status-good";
-  }
-
-  if (normalized === "warning") {
-    return "status-warning";
-  }
-
-  return "status-neutral";
-}
-
-function captureStatusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "completed" || normalized === "stopped") {
-    return "status-good";
-  }
-
-  if (
-    normalized === "pending" ||
-    normalized === "running" ||
-    normalized === "starting"
-  ) {
-    return "status-active";
-  }
-
-  if (normalized === "stopping" || normalized === "finalizing") {
-    return "status-warning";
-  }
-
-  if (normalized === "failed") {
-    return "status-danger";
-  }
-
-  return "status-neutral";
-}
-
-function formatUnixTime(value: number) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value * 1000).toLocaleString();
-}
-
-function formatBytes(value: number) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0 B";
-  }
-
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

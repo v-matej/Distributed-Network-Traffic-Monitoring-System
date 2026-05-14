@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import {
+  captureStatusClass,
+  isActiveCapture,
+  isCompletedCapture,
+  isFailedCapture,
+  isStoppableCapture,
+} from "../lib/captureUtils";
+
+import { formatBytes, formatUnixTime } from "../lib/format";
+
 import { listAgents, listAgentCaptures, stopAgentCapture } from "../lib/api";
 
 import type { KnownAgent, RemoteCaptureSessionInfo } from "../lib/api";
@@ -433,80 +443,4 @@ export function CapturesPage() {
 
 function getCaptureKey(row: GlobalCaptureRow) {
   return `${row.agent.agent_id}:${row.capture.capture_id}`;
-}
-
-function isActiveCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-
-  return (
-    status === "pending" ||
-    status === "starting" ||
-    status === "running" ||
-    status === "stopping"
-  );
-}
-
-function isStoppableCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-  return status === "pending" || status === "starting" || status === "running";
-}
-
-function isCompletedCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-  return status === "completed" || status === "stopped";
-}
-
-function isFailedCapture(capture: RemoteCaptureSessionInfo) {
-  return capture.status.toLowerCase() === "failed";
-}
-
-function captureStatusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "completed" || normalized === "stopped") {
-    return "status-good";
-  }
-
-  if (
-    normalized === "pending" ||
-    normalized === "running" ||
-    normalized === "starting"
-  ) {
-    return "status-active";
-  }
-
-  if (normalized === "stopping" || normalized === "finalizing") {
-    return "status-warning";
-  }
-
-  if (normalized === "failed") {
-    return "status-danger";
-  }
-
-  return "status-neutral";
-}
-
-function formatUnixTime(value: number) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value * 1000).toLocaleString();
-}
-
-function formatBytes(value: number) {
-  if (!value) {
-    return "0 B";
-  }
-
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

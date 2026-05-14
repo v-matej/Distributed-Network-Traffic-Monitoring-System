@@ -3,6 +3,16 @@ import type { FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
+  captureStatusClass,
+  isActiveCapture,
+  isStoppableCapture,
+} from "../lib/captureUtils";
+
+import { statusClass } from "../lib/agentUtils";
+
+import { formatDurationSeconds, formatUnixTime } from "../lib/format";
+
+import {
   getAgent,
   getAgentHealth,
   getAgentInterfaces,
@@ -1278,48 +1288,6 @@ function validateOptionalPortRange(value: string) {
   return null;
 }
 
-function isStoppableCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-  return status === "pending" || status === "starting" || status === "running";
-}
-
-function isActiveCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-
-  return (
-    status === "pending" ||
-    status === "starting" ||
-    status === "running" ||
-    status === "stopping"
-  );
-}
-
-function captureStatusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "completed" || normalized === "stopped") {
-    return "status-good";
-  }
-
-  if (
-    normalized === "pending" ||
-    normalized === "running" ||
-    normalized === "starting"
-  ) {
-    return "status-active";
-  }
-
-  if (normalized === "stopping" || normalized === "finalizing") {
-    return "status-warning";
-  }
-
-  if (normalized === "failed") {
-    return "status-danger";
-  }
-
-  return "status-neutral";
-}
-
 function getVisibleElapsedSeconds(firstSeenAtMs: number, nowMs: number) {
   return Math.max(0, Math.floor((nowMs - firstSeenAtMs) / 1000));
 }
@@ -1363,41 +1331,4 @@ function getDisplayedElapsedSeconds(
   }
 
   return Math.min(elapsedSeconds, capture.config.duration_seconds);
-}
-
-function formatDurationSeconds(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes <= 0) {
-    return `${seconds}s`;
-  }
-
-  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-}
-
-function formatUnixTime(value: number) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value * 1000).toLocaleString();
-}
-
-function statusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (
-    normalized === "ok" ||
-    normalized === "healthy" ||
-    normalized === "running"
-  ) {
-    return "status-good";
-  }
-
-  if (normalized === "warning") {
-    return "status-warning";
-  }
-
-  return "status-neutral";
 }

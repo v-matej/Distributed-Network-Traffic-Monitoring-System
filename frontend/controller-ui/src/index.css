@@ -1003,11 +1003,6 @@ code {
   font-size: 12px;
 }
 
-@ margin: 12px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 @media (max-width: 900px) {
   .active-capture-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1450,5 +1445,29 @@ code {
   .dashboard-summary-list div {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+.danger-zone {
+  border-color: rgba(239, 68, 68, 0.32);
+  background:
+    radial-gradient(circle at top right, rgba(239, 68, 68, 0.08), transparent 44%),
+    rgba(15, 23, 42, 0.74);
+}
+
+.settings-danger-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+@media (max-width: 700px) {
+  .settings-danger-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-danger-grid .danger-button {
+    width: 100%;
   }
 }

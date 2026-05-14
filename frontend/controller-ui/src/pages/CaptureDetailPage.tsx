@@ -1,6 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import {
+  getAgentCapture,
+  getAgentCaptureDownloadUrl,
+  stopAgentCapture,
+} from "../lib/api";
+
+import {
+  captureStatusClass,
+  getCaptureDerivedStats,
+  isActiveCapture,
+  isStoppableCapture,
+} from "../lib/captureUtils";
+
+import {
+  formatBytes,
+  formatDurationSeconds,
+  formatUnixTime,
+} from "../lib/format";
+
 import { getAgentCapture, stopAgentCapture } from "../lib/api";
 
 import type {
@@ -129,10 +148,10 @@ export function CaptureDetailPage() {
         </div>
 
         <div className="capture-detail-actions">
-          {agent && (
-            <Link className="secondary-button" to={`/agents/${agent.agent_id}`}>
-              Open agent
-            </Link>
+          {agent && capture && !isActiveCapture(capture) && (
+            <a className="primary-button"
+            href={getAgentCaptureDownloadUrl(agent.agent_id, capture.capture_id)}
+            download> Download PCAP </a>
           )}
 
           <button
@@ -415,7 +434,7 @@ export function CaptureDetailPage() {
 
               {!isActiveCapture(capture) && (
                 <div className="future-action-box">
-                  PCAP download and viewer controls can be added here later.
+                  PCAP download is available from the page header. Viewer controls can be added here later.
                 </div>
               )}
             </div>
@@ -424,132 +443,4 @@ export function CaptureDetailPage() {
       )}
     </div>
   );
-}
-
-function getCaptureDerivedStats(
-  capture: RemoteCaptureSessionInfo,
-): CaptureDerivedStats {
-  const durationSeconds = getCaptureDurationSeconds(capture);
-
-  if (!durationSeconds || durationSeconds <= 0) {
-    return {
-      durationSeconds: null,
-      averageThroughput: "—",
-      packetRate: "—",
-      averagePacketSize:
-        capture.result.packets_captured > 0
-          ? formatBytes(
-              capture.result.bytes_captured / capture.result.packets_captured,
-            )
-          : "—",
-    };
-  }
-
-  const bytesPerSecond = capture.result.bytes_captured / durationSeconds;
-  const packetsPerSecond = capture.result.packets_captured / durationSeconds;
-
-  return {
-    durationSeconds,
-    averageThroughput: `${formatBytes(bytesPerSecond)}/s`,
-    packetRate: `${packetsPerSecond.toFixed(2)} pps`,
-    averagePacketSize:
-      capture.result.packets_captured > 0
-        ? formatBytes(
-            capture.result.bytes_captured / capture.result.packets_captured,
-          )
-        : "—",
-  };
-}
-
-function getCaptureDurationSeconds(capture: RemoteCaptureSessionInfo) {
-  const resultStart = capture.result.start_time;
-  const resultEnd = capture.result.end_time;
-
-  if (resultStart > 0 && resultEnd > resultStart) {
-    return resultEnd - resultStart;
-  }
-
-  if (capture.started_at > 0 && capture.finished_at > capture.started_at) {
-    return capture.finished_at - capture.started_at;
-  }
-
-  return null;
-}
-
-function isActiveCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-
-  return (
-    status === "pending" ||
-    status === "starting" ||
-    status === "running" ||
-    status === "stopping"
-  );
-}
-
-function isStoppableCapture(capture: RemoteCaptureSessionInfo) {
-  const status = capture.status.toLowerCase();
-  return status === "pending" || status === "starting" || status === "running";
-}
-
-function captureStatusClass(status: string) {
-  const normalized = status.toLowerCase();
-
-  if (normalized === "completed" || normalized === "stopped") {
-    return "status-good";
-  }
-
-  if (
-    normalized === "pending" ||
-    normalized === "running" ||
-    normalized === "starting"
-  ) {
-    return "status-active";
-  }
-
-  if (normalized === "stopping" || normalized === "finalizing") {
-    return "status-warning";
-  }
-
-  if (normalized === "failed") {
-    return "status-danger";
-  }
-
-  return "status-neutral";
-}
-
-function formatUnixTime(value: number) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value * 1000).toLocaleString();
-}
-
-function formatDurationSeconds(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes <= 0) {
-    return `${seconds}s`;
-  }
-
-  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-}
-
-function formatBytes(value: number) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0 B";
-  }
-
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

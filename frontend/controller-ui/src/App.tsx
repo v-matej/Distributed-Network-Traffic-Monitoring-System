@@ -6,6 +6,7 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CaptureDetailPage } from "./pages/CaptureDetailPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 function App() {
   return (
@@ -50,15 +51,7 @@ function App() {
                 element={<CaptureDetailPage />}
               />
 
-              <Route
-                path="/settings"
-                element={
-                  <PlaceholderPage
-                    title="Settings"
-                    description="Controller settings and storage options will be added later."
-                  />
-                }
-              />
+              <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           </section>
         </main>

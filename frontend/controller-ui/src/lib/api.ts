@@ -194,3 +194,7 @@ export async function stopAgentCapture(
     },
   );
 }
+
+export function getAgentCaptureDownloadUrl(agentId: string, captureId: string) {
+  return `/api/agents/${agentId}/captures/${captureId}/download`;
+}
