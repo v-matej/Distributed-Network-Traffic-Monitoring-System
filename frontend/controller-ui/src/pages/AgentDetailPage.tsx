@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  IconActivityHeartbeat,
+  IconArrowRight,
+  IconDatabase,
+  IconFilter,
+  IconNetwork,
+  IconPlayerPlay,
+  IconRefresh,
+  IconRouter,
+  IconServer2,
+  IconTerminal2,
+} from "@tabler/icons-react";
 
 import {
   captureStatusClass,
@@ -10,7 +22,7 @@ import {
 
 import { statusClass } from "../lib/agentUtils";
 
-import { formatDurationSeconds, formatUnixTime } from "../lib/format";
+import { formatBytes, formatDurationSeconds, formatUnixTime } from "../lib/format";
 
 import {
   getAgent,
@@ -182,6 +194,27 @@ export function AgentDetailPage() {
 
   const activeCaptures = captures?.captures.filter(isActiveCapture) ?? [];
   const hasActiveCaptures = activeCaptures.length > 0;
+
+  const totalCaptures = captures?.captures.length ?? 0;
+
+  const completedCaptures =
+    captures?.captures.filter((capture) => {
+      const status = capture.status.toLowerCase();
+      return status === "completed" || status === "stopped";
+    }).length ?? 0;
+
+  const failedCaptures =
+    captures?.captures.filter(
+      (capture) => capture.status.toLowerCase() === "failed",
+    ).length ?? 0;
+
+  const interfaceCount = interfaces?.interfaces.length ?? 0;
+
+  const endpointLabel = agent
+    ? `${agent.host}:${agent.port}`
+    : "Loading agent endpoint...";
+
+  const healthStatus = health?.health.status ?? "unknown";
 
   async function loadAgentDetail() {
     if (!agentId) {
@@ -442,7 +475,9 @@ export function AgentDetailPage() {
   }, [hasActiveCaptures]);
 
   useEffect(() => {
-    const activeIds = new Set(activeCaptures.map((capture) => capture.capture_id));
+    const activeIds = new Set(
+      activeCaptures.map((capture) => capture.capture_id),
+    );
     const firstSeenAtMs = Date.now();
 
     setActiveCaptureSeenAtMs((current) => {
@@ -481,24 +516,62 @@ export function AgentDetailPage() {
 
   return (
     <div className="page-stack">
-      <section className="page-header">
-        <div>
+      <section className="console-hero agent-detail-hero">
+        <div className="console-hero-content">
           <Link className="text-link" to="/agents">
             ← Back to agents
           </Link>
+
+          <div className="console-kicker agent-detail-kicker">
+            <span className={health ? "live-dot" : "dead-dot"} />
+            Agent control surface
+          </div>
+
           <h2>{agent?.display_name || agentId}</h2>
+
           <p>
-            {agent ? `${agent.host}:${agent.port}` : "Loading agent endpoint..."}
+            Remote capture endpoint <code>{endpointLabel}</code>. Manage health,
+            interfaces, capture filters, active sessions, and capture history.
           </p>
+
+          <div className="console-hero-meta">
+            <span>
+              <IconServer2 size={15} />
+              {health?.health.hostname || "unknown-host"}
+            </span>
+
+            <span>
+              <IconActivityHeartbeat size={15} />
+              {healthStatus}
+            </span>
+
+            <span>
+              <IconNetwork size={15} />
+              {interfaceCount} interfaces
+            </span>
+
+            <span>
+              <IconDatabase size={15} />
+              {totalCaptures} captures
+            </span>
+          </div>
         </div>
 
-        <button
-          className="secondary-button"
-          onClick={() => void loadAgentDetail()}
-          disabled={isLoading}
-        >
-          {isLoading ? "Refreshing..." : "Refresh all"}
-        </button>
+        <div className="console-hero-actions">
+          <button
+            className="secondary-button"
+            onClick={() => void loadAgentDetail()}
+            disabled={isLoading}
+          >
+            <IconRefresh size={16} />
+            {isLoading ? "Refreshing..." : "Refresh all"}
+          </button>
+
+          <Link className="primary-button" to="/captures">
+            <IconDatabase size={16} />
+            Global captures
+          </Link>
+        </div>
       </section>
 
       {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
@@ -510,6 +583,48 @@ export function AgentDetailPage() {
         </div>
       ) : (
         <>
+          <section className="agent-summary-strip">
+            <div className="agent-summary-card agent-summary-green">
+              <div>
+                <span>Health</span>
+                <strong>{healthStatus}</strong>
+              </div>
+              <IconActivityHeartbeat size={20} />
+            </div>
+
+            <div className="agent-summary-card agent-summary-cyan">
+              <div>
+                <span>Interfaces</span>
+                <strong>{interfaceCount}</strong>
+              </div>
+              <IconRouter size={20} />
+            </div>
+
+            <div className="agent-summary-card agent-summary-amber">
+              <div>
+                <span>Active captures</span>
+                <strong>{activeCaptures.length}</strong>
+              </div>
+              <IconPlayerPlay size={20} />
+            </div>
+
+            <div className="agent-summary-card agent-summary-purple">
+              <div>
+                <span>Completed</span>
+                <strong>{completedCaptures}</strong>
+              </div>
+              <IconDatabase size={20} />
+            </div>
+
+            <div className="agent-summary-card agent-summary-red">
+              <div>
+                <span>Failed</span>
+                <strong>{failedCaptures}</strong>
+              </div>
+              <IconTerminal2 size={20} />
+            </div>
+          </section>
+
           <section className="two-column">
             <div className="page-card">
               <div className="section-heading">
@@ -608,8 +723,7 @@ export function AgentDetailPage() {
               <div>
                 <h3>Interfaces</h3>
                 <p>
-                  {interfaces?.interfaces.length ?? 0} interface
-                  {(interfaces?.interfaces.length ?? 0) === 1 ? "" : "s"}{" "}
+                  {interfaceCount} interface{interfaceCount === 1 ? "" : "s"}{" "}
                   available.
                 </p>
               </div>
@@ -621,26 +735,17 @@ export function AgentDetailPage() {
                 <p>The agent did not return any capture interfaces.</p>
               </div>
             ) : (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
+              <div className="interface-card-grid">
+                {interfaces.interfaces.map((iface) => (
+                  <article className="interface-card" key={iface.name}>
+                    <div>
+                      <span>Interface</span>
+                      <strong>{iface.name}</strong>
+                    </div>
 
-                  <tbody>
-                    {interfaces.interfaces.map((iface) => (
-                      <tr key={iface.name}>
-                        <td>
-                          <code>{iface.name}</code>
-                        </td>
-                        <td>{iface.description || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    <p>{iface.description || "No description reported"}</p>
+                  </article>
+                ))}
               </div>
             )}
           </section>
@@ -804,6 +909,7 @@ export function AgentDetailPage() {
                       })}
                     </div>
                   </section>
+
                   <section className="advanced-block">
                     <div className="filter-group-heading">
                       <div>
@@ -974,8 +1080,18 @@ export function AgentDetailPage() {
                 </div>
               </details>
 
-              <div className="filter-preview premium-preview">
-                <span>Generated capture filter</span>
+              <div className="filter-preview premium-preview bpf-preview-terminal">
+                <div className="bpf-preview-header">
+                  <span>
+                    <IconFilter size={14} />
+                    Generated capture filter
+                  </span>
+
+                  <span className="bpf-preview-mode">
+                    protocols:{protocolJoinMode} · presets:{presetJoinMode}
+                  </span>
+                </div>
+
                 <code>{generatedFilter || "No packet filter"}</code>
               </div>
 
@@ -996,9 +1112,8 @@ export function AgentDetailPage() {
               <div>
                 <h3>Captures</h3>
                 <p>
-                  {captures?.captures.length ?? 0} capture
-                  {(captures?.captures.length ?? 0) === 1 ? "" : "s"} known on
-                  this agent.
+                  {totalCaptures} capture{totalCaptures === 1 ? "" : "s"} known
+                  on this agent.
                 </p>
               </div>
 
@@ -1177,12 +1292,20 @@ export function AgentDetailPage() {
                         </td>
 
                         <td>{capture.result.packets_captured}</td>
-                        <td>{capture.result.bytes_captured}</td>
+                        <td>{formatBytes(capture.result.bytes_captured)}</td>
                         <td>{capture.result.stop_reason || "—"}</td>
                         <td>{formatUnixTime(capture.created_at)}</td>
 
                         <td className="table-actions">
-                          {isStoppableCapture(capture) ? (
+                          <Link
+                            className="small-button"
+                            to={`/captures/${agentId}/${capture.capture_id}`}
+                          >
+                            Open
+                            <IconArrowRight size={14} />
+                          </Link>
+
+                          {isStoppableCapture(capture) && (
                             <button
                               className="small-button danger-text"
                               onClick={() =>
@@ -1191,8 +1314,6 @@ export function AgentDetailPage() {
                             >
                               Stop
                             </button>
-                          ) : (
-                            <span className="muted-text">—</span>
                           )}
                         </td>
                       </tr>

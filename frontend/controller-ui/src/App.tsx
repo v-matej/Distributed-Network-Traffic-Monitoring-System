@@ -101,7 +101,7 @@ function App() {
             </div>
           </div>
 
-          <div className="sidebar-footer">
+          {/* <div className="sidebar-footer">
             <div>
               <span>Build profile</span>
               <strong>Presentation</strong>
@@ -111,7 +111,7 @@ function App() {
               <span>UI stack</span>
               <strong>React · TS · Tailwind</strong>
             </div>
-          </div>
+          </div> */}
         </aside>
 
         <main className="main">
