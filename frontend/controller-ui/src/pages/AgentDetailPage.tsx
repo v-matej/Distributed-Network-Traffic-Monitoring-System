@@ -41,6 +41,8 @@ type PresetFilter =
   | "mdns"
   | "ping";
 
+type FilterJoinMode = "any" | "all";
+
 const PROTOCOL_FILTERS: Array<{
   id: ProtocolFilter;
   label: string;
@@ -132,7 +134,11 @@ export function AgentDetailPage() {
   const [selectedInterface, setSelectedInterface] = useState("");
 
   const [protocolFilters, setProtocolFilters] = useState<ProtocolFilter[]>([]);
+  const [protocolJoinMode, setProtocolJoinMode] =
+    useState<FilterJoinMode>("any");
+
   const [presetFilters, setPresetFilters] = useState<PresetFilter[]>([]);
+  const [presetJoinMode, setPresetJoinMode] = useState<FilterJoinMode>("any");
 
   const [sourceHost, setSourceHost] = useState("");
   const [destinationHost, setDestinationHost] = useState("");
@@ -160,7 +166,9 @@ export function AgentDetailPage() {
 
   const generatedFilter = buildFilterExpression({
     protocols: protocolFilters,
+    protocolJoinMode,
     presets: presetFilters,
+    presetJoinMode,
     sourceHost,
     destinationHost,
     networkFilter,
@@ -748,7 +756,34 @@ export function AgentDetailPage() {
 
                 <div className="advanced-filter-content compact-filter-content">
                   <section className="advanced-block">
-                    <h4>Protocols</h4>
+                    <div className="filter-group-heading">
+                      <div>
+                        <h4>Protocols</h4>
+                        <p>Choose whether selected protocols should match any or all.</p>
+                      </div>
+
+                      <div className="segmented-control" aria-label="Protocol filter mode">
+                        <button
+                          type="button"
+                          className={`segment-button ${
+                            protocolJoinMode === "any" ? "active" : ""
+                          }`}
+                          onClick={() => setProtocolJoinMode("any")}
+                        >
+                          Any
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`segment-button ${
+                            protocolJoinMode === "all" ? "active" : ""
+                          }`}
+                          onClick={() => setProtocolJoinMode("all")}
+                        >
+                          All
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="compact-option-grid">
                       {PROTOCOL_FILTERS.map((protocol) => {
@@ -758,9 +793,9 @@ export function AgentDetailPage() {
                           <button
                             key={protocol.id}
                             type="button"
-                            className={`compact-filter-button ${
-                              protocol.className
-                            } ${isActive ? "active" : ""}`}
+                            className={`compact-filter-button ${protocol.className} ${
+                              isActive ? "active" : ""
+                            }`}
                             onClick={() => toggleProtocolFilter(protocol.id)}
                           >
                             {protocol.label}
@@ -769,9 +804,35 @@ export function AgentDetailPage() {
                       })}
                     </div>
                   </section>
-
                   <section className="advanced-block">
-                    <h4>Common traffic</h4>
+                    <div className="filter-group-heading">
+                      <div>
+                        <h4>Common traffic</h4>
+                        <p>Combine selected presets using any or all logic.</p>
+                      </div>
+
+                      <div className="segmented-control" aria-label="Preset filter mode">
+                        <button
+                          type="button"
+                          className={`segment-button ${
+                            presetJoinMode === "any" ? "active" : ""
+                          }`}
+                          onClick={() => setPresetJoinMode("any")}
+                        >
+                          Any
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`segment-button ${
+                            presetJoinMode === "all" ? "active" : ""
+                          }`}
+                          onClick={() => setPresetJoinMode("all")}
+                        >
+                          All
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="compact-option-grid">
                       {PRESET_FILTERS.map((preset) => {
@@ -782,9 +843,9 @@ export function AgentDetailPage() {
                             key={preset.id}
                             type="button"
                             title={preset.expression}
-                            className={`compact-filter-button ${
-                              preset.className
-                            } ${isActive ? "active" : ""}`}
+                            className={`compact-filter-button ${preset.className} ${
+                              isActive ? "active" : ""
+                            }`}
                             onClick={() => togglePresetFilter(preset.id)}
                           >
                             {preset.label}
@@ -1170,7 +1231,9 @@ function toggleArrayValue<T extends string>(values: T[], value: T) {
 
 function buildFilterExpression(options: {
   protocols: ProtocolFilter[];
+  protocolJoinMode: FilterJoinMode;
   presets: PresetFilter[];
+  presetJoinMode: FilterJoinMode;
   sourceHost: string;
   destinationHost: string;
   networkFilter: string;
@@ -1183,10 +1246,13 @@ function buildFilterExpression(options: {
 }) {
   const parts: string[] = [];
 
-  if (options.protocols.length === 1) {
-    parts.push(options.protocols[0]);
-  } else if (options.protocols.length > 1) {
-    parts.push(`(${options.protocols.join(" or ")})`);
+  const protocolExpression = joinFilterGroup(
+    options.protocols,
+    options.protocolJoinMode,
+  );
+
+  if (protocolExpression) {
+    parts.push(protocolExpression);
   }
 
   const presetExpressions = options.presets
@@ -1196,10 +1262,13 @@ function buildFilterExpression(options: {
     )
     .map((preset) => preset.expression);
 
-  if (presetExpressions.length === 1) {
-    parts.push(presetExpressions[0]);
-  } else if (presetExpressions.length > 1) {
-    parts.push(`(${presetExpressions.join(" or ")})`);
+  const presetExpression = joinFilterGroup(
+    presetExpressions,
+    options.presetJoinMode,
+  );
+
+  if (presetExpression) {
+    parts.push(presetExpression);
   }
 
   if (options.sourceHost.trim()) {
@@ -1239,6 +1308,19 @@ function buildFilterExpression(options: {
   }
 
   return parts.join(" and ");
+}
+
+function joinFilterGroup(expressions: string[], mode: FilterJoinMode) {
+  if (expressions.length === 0) {
+    return null;
+  }
+
+  if (expressions.length === 1) {
+    return expressions[0];
+  }
+
+  const operator = mode === "all" ? " and " : " or ";
+  return `(${expressions.join(operator)})`;
 }
 
 function validateOptionalPort(value: string, label: string) {
