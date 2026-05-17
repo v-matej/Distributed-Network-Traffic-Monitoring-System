@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  IconActivity,
+  IconArrowRight,
+  IconBinaryTree,
+  IconDatabase,
+  IconDownload,
+  IconNetwork,
+  IconRefresh,
+  IconServer2,
+  IconTerminal2,
+  IconWifi,
+} from "@tabler/icons-react";
 
 import {
   captureStatusClass,
@@ -68,11 +80,37 @@ export function DashboardPage() {
     isFailedCapture(row.capture),
   );
 
+  const totalPackets = captures.reduce(
+    (sum, row) => sum + row.capture.result.packets_captured,
+    0,
+  );
+
+  const totalBytes = captures.reduce(
+    (sum, row) => sum + row.capture.result.bytes_captured,
+    0,
+  );
+
   const recentCaptures = useMemo(() => {
     return [...captures]
       .sort((left, right) => right.capture.created_at - left.capture.created_at)
       .slice(0, 6);
   }, [captures]);
+
+  const activityLines = useMemo(() => {
+    if (recentCaptures.length === 0) {
+      return [
+        "controller: waiting for capture sessions",
+        "agent registry: ready",
+        "pcap storage: download proxy online",
+      ];
+    }
+
+    return recentCaptures.slice(0, 5).map((row) => {
+      const agentName = getAgentDisplayName(row.agent);
+      const iface = row.capture.config.interface_name || "unknown-iface";
+      return `${row.capture.status.toUpperCase()} ${row.capture.capture_id} on ${agentName}/${iface}`;
+    });
+  }, [recentCaptures]);
 
   async function loadDashboard(options: { silent?: boolean } = {}) {
     if (!options.silent) {
@@ -164,23 +202,54 @@ export function DashboardPage() {
   }, [activeCaptures.length]);
 
   return (
-    <div className="page-stack">
-      <section className="page-header">
-        <div>
-          <h2>Dashboard</h2>
+    <div className="page-stack animate-softIn">
+      <section className="console-hero">
+        <div className="console-hero-content">
+          <div className="console-kicker">
+            <span className="live-dot" />
+            Live controller overview
+          </div>
+
+          <h2>Network capture operations</h2>
+
           <p>
-            High-level status of the controller, registered agents, and capture
-            activity.
+            Real-time control plane for registered agents, remote captures, PCAP download,
+            and session inspection.
           </p>
+
+          <div className="console-hero-meta">
+            <span>
+              <IconServer2 size={15} />
+              {agents.length} agents
+            </span>
+
+            <span>
+              <IconActivity size={15} />
+              {activeCaptures.length} active captures
+            </span>
+
+            <span>
+              <IconDatabase size={15} />
+              {formatBytes(totalBytes)} stored result data
+            </span>
+          </div>
         </div>
 
-        <button
-          className="secondary-button"
-          onClick={() => void loadDashboard()}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? "Refreshing..." : "Refresh"}
-        </button>
+        <div className="console-hero-actions">
+          <button
+            className="secondary-button"
+            onClick={() => void loadDashboard()}
+            disabled={isRefreshing}
+          >
+            <IconRefresh size={16} />
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </button>
+
+          <Link className="primary-button" to="/agents">
+            <IconNetwork size={16} />
+            Manage agents
+          </Link>
+        </div>
       </section>
 
       {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
@@ -193,49 +262,54 @@ export function DashboardPage() {
       ) : (
         <>
           <section className="metric-grid dashboard-metric-grid">
-            <div className="metric-card">
-              <span className="metric-label">Known agents</span>
-              <strong>{agents.length}</strong>
-              <p>Registered controller agents.</p>
-            </div>
+            <DashboardMetric
+              icon={<IconNetwork size={18} />}
+              label="Known agents"
+              value={agents.length.toString()}
+              description={`${onlineAgents.length} online, ${offlineAgents.length} offline`}
+              accent="green"
+            />
 
-            <div className="metric-card">
-              <span className="metric-label">Online agents</span>
-              <strong>{onlineAgents.length}</strong>
-              <p>
-                {offlineAgents.length} offline or unreachable.
-              </p>
-            </div>
+            <DashboardMetric
+              icon={<IconWifi size={18} />}
+              label="Active captures"
+              value={activeCaptures.length.toString()}
+              description="Pending, starting, running, or stopping"
+              accent="cyan"
+            />
 
-            <div className="metric-card">
-              <span className="metric-label">Active captures</span>
-              <strong>{activeCaptures.length}</strong>
-              <p>Pending, starting, running, or stopping.</p>
-            </div>
+            <DashboardMetric
+              icon={<IconBinaryTree size={18} />}
+              label="Packets"
+              value={totalPackets.toLocaleString()}
+              description="Captured across completed sessions"
+              accent="amber"
+            />
 
-            <div className="metric-card">
-              <span className="metric-label">Total captures</span>
-              <strong>{captures.length}</strong>
-              <p>
-                {completedCaptures.length} completed, {failedCaptures.length} failed.
-              </p>
-            </div>
+            <DashboardMetric
+              icon={<IconDownload size={18} />}
+              label="Capture data"
+              value={formatBytes(totalBytes)}
+              description={`${completedCaptures.length} completed sessions`}
+              accent="purple"
+            />
           </section>
 
-          <section className="dashboard-overview-grid">
-            <div className="page-card">
-              <div className="section-heading">
+          <section className="dashboard-console-grid">
+            <div className="page-card dashboard-command-panel">
+              <div className="panel-title-row">
                 <div>
                   <h3>Agent status</h3>
                   <p>
                     {lastLoadedAt
-                      ? `Last refresh: ${lastLoadedAt.toLocaleString()}.`
-                      : "Current agent health overview."}
+                      ? `Last refresh: ${lastLoadedAt.toLocaleString()}`
+                      : "Current agent health overview"}
                   </p>
                 </div>
 
                 <Link className="small-button" to="/agents">
-                  Manage agents
+                  Open
+                  <IconArrowRight size={14} />
                 </Link>
               </div>
 
@@ -252,11 +326,15 @@ export function DashboardPage() {
                       key={item.agent.agent_id}
                       to={`/agents/${item.agent.agent_id}`}
                     >
-                      <div>
-                        <strong>{getAgentDisplayName(item.agent)}</strong>
-                        <span>
-                          {item.agent.host}:{item.agent.port}
-                        </span>
+                      <div className="agent-card-left">
+                        <span className={item.health ? "live-dot" : "dead-dot"} />
+
+                        <div>
+                          <strong>{getAgentDisplayName(item.agent)}</strong>
+                          <span>
+                            {item.agent.host}:{item.agent.port}
+                          </span>
+                        </div>
                       </div>
 
                       <span
@@ -274,19 +352,26 @@ export function DashboardPage() {
               )}
             </div>
 
-            <div className="page-card">
-              <div className="section-heading">
+            <div className="page-card dashboard-command-panel">
+              <div className="panel-title-row">
                 <div>
-                  <h3>Capture summary</h3>
-                  <p>Current capture activity across all agents.</p>
+                  <h3>Controller activity</h3>
+                  <p>Recent control-plane events derived from capture history.</p>
                 </div>
 
-                <Link className="small-button" to="/captures">
-                  View captures
-                </Link>
+                <IconTerminal2 className="panel-icon" size={20} />
               </div>
 
-              <div className="dashboard-summary-list">
+              <div className="terminal-feed">
+                {activityLines.map((line, index) => (
+                  <div key={`${line}-${index}`} className="terminal-line">
+                    <span>{new Date().toLocaleTimeString()}</span>
+                    <code>{line}</code>
+                  </div>
+                ))}
+              </div>
+
+              <div className="dashboard-summary-list terminal-summary-list">
                 <div>
                   <span>Active</span>
                   <strong>{activeCaptures.length}</strong>
@@ -304,31 +389,14 @@ export function DashboardPage() {
 
                 <div>
                   <span>Total bytes</span>
-                  <strong>
-                    {formatBytes(
-                      captures.reduce(
-                        (sum, row) => sum + row.capture.result.bytes_captured,
-                        0,
-                      ),
-                    )}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Total packets</span>
-                  <strong>
-                    {captures.reduce(
-                      (sum, row) => sum + row.capture.result.packets_captured,
-                      0,
-                    )}
-                  </strong>
+                  <strong>{formatBytes(totalBytes)}</strong>
                 </div>
               </div>
             </div>
           </section>
 
           <section className="page-card">
-            <div className="section-heading">
+            <div className="panel-title-row">
               <div>
                 <h3>Recent captures</h3>
                 <p>Latest capture sessions reported by known agents.</p>
@@ -336,6 +404,7 @@ export function DashboardPage() {
 
               <Link className="small-button" to="/captures">
                 Open captures
+                <IconArrowRight size={14} />
               </Link>
             </div>
 
@@ -411,6 +480,34 @@ export function DashboardPage() {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+type DashboardMetricProps = {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  description: string;
+  accent: "green" | "cyan" | "amber" | "purple" | "red";
+};
+
+function DashboardMetric({
+  icon,
+  label,
+  value,
+  description,
+  accent,
+}: DashboardMetricProps) {
+  return (
+    <div className={`metric-card console-metric console-metric-${accent}`}>
+      <div className="metric-topline">
+        <span>{icon}</span>
+        <span>{label}</span>
+      </div>
+
+      <strong>{value}</strong>
+      <p>{description}</p>
     </div>
   );
 }
