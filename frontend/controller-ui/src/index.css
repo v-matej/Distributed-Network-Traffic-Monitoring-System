@@ -483,7 +483,7 @@
 
   .form-grid {
     @apply grid items-end gap-3;
-    grid-template-columns: 1.2fr 1fr 160px auto;
+    grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(120px, 160px) minmax(150px, auto);
   }
 
   .form-grid label,
@@ -514,6 +514,10 @@
 
   .form-actions {
     @apply flex justify-end;
+  }
+
+  .form-actions .primary-button {
+    white-space: nowrap;
   }
 
   .table-wrap {
@@ -1029,6 +1033,20 @@
   }
 }
 
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    justify-content: stretch;
+  }
+
+  .form-actions .primary-button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1180px) {
   .dashboard-metric-grid,
   .capture-metric-grid {
@@ -1314,4 +1332,620 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+.theme-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.theme-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid var(--border);
+  background: rgba(8, 12, 16, 0.72);
+  color: var(--text);
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.theme-option-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 255, 136, 0.32);
+}
+
+.theme-option-card.active {
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 136, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.theme-option-card svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.theme-option-card strong {
+  display: block;
+  font-family: "Share Tech Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.theme-option-card span {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Light presentation theme */
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f4f7f2;
+  --panel: #ffffff;
+  --panel-soft: #eef4ee;
+  --panel-strong: #ffffff;
+  --border: #c9d8ce;
+  --border-strong: #9bb7a6;
+  --text: #102017;
+  --muted: #4f6f5e;
+  --dim: #6d8a78;
+  --accent: #087f4f;
+  --accent-strong: #05633d;
+  --accent-cyan: #047d95;
+  --danger: #b4233f;
+  --success: #087f4f;
+  --warning: #a86400;
+  --purple: #5b4fd6;
+}
+
+html[data-theme="light"] body {
+  color: var(--text);
+  background:
+    linear-gradient(rgba(8, 127, 79, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 127, 79, 0.026) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgba(8, 127, 79, 0.11), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(4, 125, 149, 0.08), transparent 30rem),
+    var(--bg) !important;
+  background-size:
+    34px 34px,
+    34px 34px,
+    auto,
+    auto,
+    auto;
+}
+
+html[data-theme="light"] .sidebar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--border) !important;
+  box-shadow:
+    inset -1px 0 0 rgba(8, 127, 79, 0.07),
+    10px 0 34px rgba(17, 45, 30, 0.06) !important;
+}
+
+html[data-theme="light"] .main {
+  color: var(--text);
+}
+
+html[data-theme="light"] .brand {
+  border-color: var(--border) !important;
+}
+
+html[data-theme="light"] .brand-mark {
+  border-color: rgba(8, 127, 79, 0.4) !important;
+  background: rgba(8, 127, 79, 0.09) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 18px rgba(8, 127, 79, 0.12) !important;
+}
+
+html[data-theme="light"] .brand-title,
+html[data-theme="light"] .live-dot-row,
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .console-kicker {
+  color: var(--accent) !important;
+}
+
+html[data-theme="light"] .brand-subtitle,
+html[data-theme="light"] .sidebar-section-label,
+html[data-theme="light"] .sidebar-mini-grid span,
+html[data-theme="light"] .sidebar-footer span,
+html[data-theme="light"] .table-sub-text,
+html[data-theme="light"] .status-time,
+html[data-theme="light"] .metric-label,
+html[data-theme="light"] .metric-topline,
+html[data-theme="light"] .detail-list dt,
+html[data-theme="light"] .compact-detail-list dt {
+  color: var(--dim) !important;
+}
+
+html[data-theme="light"] .sidebar-status-card,
+html[data-theme="light"] .sidebar-mini-grid > div,
+html[data-theme="light"] .sidebar-status-meta,
+html[data-theme="light"] .terminal-feed,
+html[data-theme="light"] .dashboard-summary-list div,
+html[data-theme="light"] .active-capture-stat,
+html[data-theme="light"] .capture-panel,
+html[data-theme="light"] .advanced-filter-panel,
+html[data-theme="light"] .capture-detail-section,
+html[data-theme="light"] .diagnostic-box,
+html[data-theme="light"] .future-action-box {
+  border-color: var(--border) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+}
+
+html[data-theme="light"] .nav a {
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .nav a:hover {
+  border-color: var(--border) !important;
+  background: rgba(8, 127, 79, 0.06) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .nav a.active {
+  border-color: rgba(8, 127, 79, 0.35) !important;
+  background: rgba(8, 127, 79, 0.09) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 20px rgba(8, 127, 79, 0.1) !important;
+}
+
+html[data-theme="light"] .topbar {
+  border-color: var(--border) !important;
+}
+
+html[data-theme="light"] .topbar h1,
+html[data-theme="light"] .page-header h2,
+html[data-theme="light"] .console-hero h2,
+html[data-theme="light"] .panel-title-row h3,
+html[data-theme="light"] .section-heading h3,
+html[data-theme="light"] .page-card h3,
+html[data-theme="light"] .metric-card strong,
+html[data-theme="light"] .detail-list dd,
+html[data-theme="light"] .compact-detail-list dd,
+html[data-theme="light"] .table-main-text,
+html[data-theme="light"] .agent-summary-card strong,
+html[data-theme="light"] .theme-option-card strong {
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .topbar p,
+html[data-theme="light"] .page-header p,
+html[data-theme="light"] .console-hero p,
+html[data-theme="light"] .panel-title-row p,
+html[data-theme="light"] .section-heading p,
+html[data-theme="light"] .metric-card p,
+html[data-theme="light"] .empty-state p,
+html[data-theme="light"] .muted-text,
+html[data-theme="light"] .active-capture-note,
+html[data-theme="light"] .theme-option-card span {
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .page-card,
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .console-hero,
+html[data-theme="light"] .dashboard-agent-card,
+html[data-theme="light"] .interface-card,
+html[data-theme="light"] .agent-summary-card,
+html[data-theme="light"] .theme-option-card {
+  border-color: var(--border) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow:
+    0 0 0 1px rgba(8, 127, 79, 0.035),
+    0 18px 40px rgba(17, 45, 30, 0.08) !important;
+}
+
+html[data-theme="light"] .console-hero::before,
+html[data-theme="light"] .bpf-preview-terminal::before {
+  background: linear-gradient(90deg, var(--accent), var(--accent-cyan), transparent) !important;
+}
+
+html[data-theme="light"] .console-hero::after {
+  background: radial-gradient(circle at top right, rgba(8, 127, 79, 0.13), transparent 34rem) !important;
+}
+
+html[data-theme="light"] .status-pill {
+  border-color: rgba(8, 127, 79, 0.32) !important;
+  background: rgba(8, 127, 79, 0.08) !important;
+  color: var(--accent) !important;
+}
+
+html[data-theme="light"] .status-pill-cyan {
+  border-color: rgba(4, 125, 149, 0.32) !important;
+  background: rgba(4, 125, 149, 0.08) !important;
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] .primary-button {
+  border-color: rgba(8, 127, 79, 0.46) !important;
+  background: rgba(8, 127, 79, 0.11) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 12px 26px rgba(8, 127, 79, 0.12) !important;
+}
+
+html[data-theme="light"] .secondary-button,
+html[data-theme="light"] .small-button {
+  border-color: var(--border) !important;
+  background: rgba(255, 255, 255, 0.76) !important;
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .secondary-button:hover,
+html[data-theme="light"] .small-button:hover {
+  border-color: rgba(4, 125, 149, 0.4) !important;
+  background: rgba(4, 125, 149, 0.08) !important;
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] .danger-button {
+  border-color: rgba(180, 35, 63, 0.38) !important;
+  background: rgba(180, 35, 63, 0.08) !important;
+  color: var(--danger) !important;
+}
+
+html[data-theme="light"] code {
+  border-color: var(--border) !important;
+  background: rgba(238, 244, 238, 0.92) !important;
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  border-color: var(--border) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] input:focus,
+html[data-theme="light"] select:focus,
+html[data-theme="light"] textarea:focus {
+  border-color: rgba(8, 127, 79, 0.55) !important;
+  box-shadow: 0 0 0 2px rgba(8, 127, 79, 0.11) !important;
+}
+
+html[data-theme="light"] .data-table th,
+html[data-theme="light"] .data-table td {
+  border-color: var(--border) !important;
+}
+
+html[data-theme="light"] .data-table th {
+  color: var(--dim) !important;
+}
+
+html[data-theme="light"] .data-table tbody tr:hover {
+  background: rgba(8, 127, 79, 0.055) !important;
+}
+
+html[data-theme="light"] .status-good {
+  border-color: rgba(8, 127, 79, 0.36) !important;
+  background: rgba(8, 127, 79, 0.09) !important;
+  color: var(--accent) !important;
+}
+
+html[data-theme="light"] .status-active,
+html[data-theme="light"] .status-neutral {
+  border-color: rgba(4, 125, 149, 0.36) !important;
+  background: rgba(4, 125, 149, 0.09) !important;
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] .status-warning {
+  border-color: rgba(168, 100, 0, 0.36) !important;
+  background: rgba(168, 100, 0, 0.09) !important;
+  color: var(--warning) !important;
+}
+
+html[data-theme="light"] .status-danger,
+html[data-theme="light"] .danger-text {
+  border-color: rgba(180, 35, 63, 0.36) !important;
+  background: rgba(180, 35, 63, 0.08) !important;
+  color: var(--danger) !important;
+}
+
+html[data-theme="light"] .alert-success {
+  border-color: rgba(8, 127, 79, 0.32) !important;
+  background: rgba(8, 127, 79, 0.08) !important;
+  color: var(--accent) !important;
+}
+
+html[data-theme="light"] .alert-error {
+  border-color: rgba(180, 35, 63, 0.36) !important;
+  background: rgba(180, 35, 63, 0.08) !important;
+  color: var(--danger) !important;
+}
+
+html[data-theme="light"] .option-card,
+html[data-theme="light"] .compact-filter-button,
+html[data-theme="light"] .segmented-control,
+html[data-theme="light"] .segment-button,
+html[data-theme="light"] .filter-preview,
+html[data-theme="light"] .terminal-filter-group {
+  border-color: var(--border) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .option-card.active,
+html[data-theme="light"] .segment-button.active,
+html[data-theme="light"] .theme-option-card.active {
+  border-color: rgba(8, 127, 79, 0.42) !important;
+  background: rgba(8, 127, 79, 0.1) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 12px 28px rgba(8, 127, 79, 0.12) !important;
+}
+
+html[data-theme="light"] .compact-filter-button.protocol-tcp.active,
+html[data-theme="light"] .compact-filter-button.preset-http.active,
+html[data-theme="light"] .compact-filter-button.preset-https.active,
+html[data-theme="light"] .compact-filter-button.preset-ssh.active {
+  border-color: rgba(8, 127, 79, 0.45) !important;
+  background: rgba(8, 127, 79, 0.1) !important;
+  color: var(--accent) !important;
+}
+
+html[data-theme="light"] .compact-filter-button.protocol-udp.active,
+html[data-theme="light"] .compact-filter-button.preset-dns.active,
+html[data-theme="light"] .compact-filter-button.preset-dhcp.active,
+html[data-theme="light"] .compact-filter-button.preset-ntp.active,
+html[data-theme="light"] .compact-filter-button.preset-mdns.active {
+  border-color: rgba(168, 100, 0, 0.45) !important;
+  background: rgba(168, 100, 0, 0.1) !important;
+  color: var(--warning) !important;
+}
+
+html[data-theme="light"] .compact-filter-button.protocol-icmp.active,
+html[data-theme="light"] .compact-filter-button.preset-ping.active {
+  border-color: rgba(180, 35, 63, 0.45) !important;
+  background: rgba(180, 35, 63, 0.09) !important;
+  color: var(--danger) !important;
+}
+
+html[data-theme="light"] .compact-filter-button.protocol-arp.active,
+html[data-theme="light"] .compact-filter-button.protocol-ip.active,
+html[data-theme="light"] .compact-filter-button.protocol-ip6.active {
+  border-color: rgba(4, 125, 149, 0.45) !important;
+  background: rgba(4, 125, 149, 0.09) !important;
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] .progress-track {
+  background: rgba(201, 216, 206, 0.8) !important;
+}
+
+html[data-theme="light"] .progress-fill {
+  background: var(--accent) !important;
+  box-shadow: 0 0 16px rgba(8, 127, 79, 0.22) !important;
+}
+
+html[data-theme="light"] .danger-zone {
+  border-color: rgba(180, 35, 63, 0.26) !important;
+  background: rgba(180, 35, 63, 0.045) !important;
+}
+
+@media (max-width: 700px) {
+  .theme-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Light theme contrast tuning */
+
+html[data-theme="light"] {
+  --bg: #eaf1ec;
+  --panel: #f9fcfa;
+  --panel-soft: #eef6f1;
+  --panel-strong: #ffffff;
+  --border: #a9c2b1;
+  --border-strong: #6f9b80;
+  --text: #0b1f14;
+  --muted: #315743;
+  --dim: #5d806c;
+  --accent: #047846;
+  --accent-strong: #035f38;
+  --accent-cyan: #006f86;
+  --danger: #a91f3b;
+  --success: #047846;
+  --warning: #9a5c00;
+  --purple: #5548c8;
+}
+
+html[data-theme="light"] body {
+  background:
+    linear-gradient(rgba(4, 120, 70, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(4, 120, 70, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgba(4, 120, 70, 0.14), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(0, 111, 134, 0.1), transparent 30rem),
+    var(--bg) !important;
+}
+
+/* Panels: less white, more readable */
+html[data-theme="light"] .page-card,
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .console-hero,
+html[data-theme="light"] .dashboard-agent-card,
+html[data-theme="light"] .interface-card,
+html[data-theme="light"] .agent-summary-card,
+html[data-theme="light"] .theme-option-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 250, 246, 0.92)),
+    var(--panel) !important;
+  border-color: var(--border) !important;
+  box-shadow:
+    0 0 0 1px rgba(4, 120, 70, 0.04),
+    0 18px 38px rgba(24, 60, 38, 0.1) !important;
+}
+
+/* Dashboard hero meta pills: fixes the black buttons */
+html[data-theme="light"] .console-hero-meta span {
+  border-color: rgba(4, 120, 70, 0.28) !important;
+  background: rgba(224, 239, 229, 0.92) !important;
+  color: var(--muted) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+html[data-theme="light"] .console-hero-meta svg {
+  color: var(--accent-cyan) !important;
+}
+
+/* Stronger dashboard hero typography */
+html[data-theme="light"] .console-hero h2,
+html[data-theme="light"] .topbar h1,
+html[data-theme="light"] .page-header h2 {
+  color: #07170e !important;
+}
+
+html[data-theme="light"] .console-hero p,
+html[data-theme="light"] .topbar p,
+html[data-theme="light"] .page-header p {
+  color: #3a604c !important;
+}
+
+/* Buttons: better contrast in light mode */
+html[data-theme="light"] .primary-button {
+  border-color: rgba(4, 120, 70, 0.55) !important;
+  background: linear-gradient(180deg, rgba(4, 120, 70, 0.16), rgba(4, 120, 70, 0.1)) !important;
+  color: #035f38 !important;
+  box-shadow:
+    0 0 0 1px rgba(4, 120, 70, 0.06),
+    0 14px 28px rgba(4, 120, 70, 0.16) !important;
+}
+
+html[data-theme="light"] .primary-button:hover {
+  background: linear-gradient(180deg, rgba(4, 120, 70, 0.22), rgba(4, 120, 70, 0.14)) !important;
+  color: #024629 !important;
+}
+
+html[data-theme="light"] .secondary-button,
+html[data-theme="light"] .small-button {
+  border-color: rgba(93, 128, 108, 0.45) !important;
+  background: rgba(246, 250, 247, 0.92) !important;
+  color: #315743 !important;
+}
+
+html[data-theme="light"] .secondary-button:hover,
+html[data-theme="light"] .small-button:hover {
+  border-color: rgba(0, 111, 134, 0.45) !important;
+  background: rgba(0, 111, 134, 0.08) !important;
+  color: var(--accent-cyan) !important;
+}
+
+/* Metric cards: clearer on projector */
+html[data-theme="light"] .metric-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(237, 247, 241, 0.95)),
+    var(--panel) !important;
+}
+
+html[data-theme="light"] .metric-card strong {
+  color: #07170e !important;
+}
+
+html[data-theme="light"] .metric-topline,
+html[data-theme="light"] .metric-label {
+  color: #426b54 !important;
+}
+
+/* Tables: stronger row separation */
+html[data-theme="light"] .data-table th {
+  color: #50735f !important;
+}
+
+html[data-theme="light"] .data-table td {
+  color: #102017 !important;
+}
+
+html[data-theme="light"] .data-table th,
+html[data-theme="light"] .data-table td {
+  border-color: rgba(126, 160, 138, 0.42) !important;
+}
+
+html[data-theme="light"] .data-table tbody tr:hover {
+  background: rgba(4, 120, 70, 0.07) !important;
+}
+
+/* Code pills and IDs */
+html[data-theme="light"] code {
+  border-color: rgba(0, 111, 134, 0.28) !important;
+  background: rgba(226, 239, 232, 0.96) !important;
+  color: #005f75 !important;
+}
+
+/* Status badges stay readable */
+html[data-theme="light"] .status-good {
+  border-color: rgba(4, 120, 70, 0.42) !important;
+  background: rgba(4, 120, 70, 0.12) !important;
+  color: #035f38 !important;
+}
+
+html[data-theme="light"] .status-active,
+html[data-theme="light"] .status-neutral {
+  border-color: rgba(0, 111, 134, 0.42) !important;
+  background: rgba(0, 111, 134, 0.11) !important;
+  color: #005f75 !important;
+}
+
+html[data-theme="light"] .status-warning {
+  border-color: rgba(154, 92, 0, 0.42) !important;
+  background: rgba(154, 92, 0, 0.1) !important;
+  color: #764600 !important;
+}
+
+html[data-theme="light"] .status-danger,
+html[data-theme="light"] .danger-text {
+  border-color: rgba(169, 31, 59, 0.42) !important;
+  background: rgba(169, 31, 59, 0.1) !important;
+  color: #8d1830 !important;
+}
+
+/* Capture builder controls in light mode */
+html[data-theme="light"] .capture-panel,
+html[data-theme="light"] .advanced-filter-panel,
+html[data-theme="light"] .filter-preview,
+html[data-theme="light"] .terminal-filter-group,
+html[data-theme="light"] .option-card,
+html[data-theme="light"] .compact-filter-button,
+html[data-theme="light"] .segmented-control {
+  background: rgba(246, 250, 247, 0.92) !important;
+  border-color: rgba(126, 160, 138, 0.46) !important;
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .segment-button.active,
+html[data-theme="light"] .option-card.active {
+  background: rgba(4, 120, 70, 0.13) !important;
+  border-color: rgba(4, 120, 70, 0.45) !important;
+  color: #035f38 !important;
+}
+
+/* Sidebar remains distinct from the main canvas */
+html[data-theme="light"] .sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(237, 247, 241, 0.96)) !important;
+  border-color: var(--border) !important;
+}
+
+html[data-theme="light"] .sidebar-status-card,
+html[data-theme="light"] .sidebar-mini-grid > div,
+html[data-theme="light"] .sidebar-status-meta {
+  background: rgba(232, 242, 235, 0.9) !important;
+  border-color: rgba(126, 160, 138, 0.46) !important;
 }

@@ -1,19 +1,32 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { IconRefresh } from "@tabler/icons-react";
+
+import { statusClass } from "../lib/agentUtils";
+import { formatUnixTime } from "../lib/format";
 
 import {
   addAgent,
   clearAgents,
   deleteAgent,
+  getAgentHealth,
   listAgents,
 } from "../lib/api";
-import type { KnownAgent } from "../lib/api";
+
+import type { KnownAgent, KnownAgentWithHealth } from "../lib/api";
 
 type FormState = {
   display_name: string;
   host: string;
   port: string;
+};
+
+type AgentStatusState = {
+  label: string;
+  className: string;
+  title: string;
+  lastCheckedAt: Date | null;
 };
 
 const initialFormState: FormState = {
@@ -22,11 +35,22 @@ const initialFormState: FormState = {
   port: "8080",
 };
 
+const checkingStatus: AgentStatusState = {
+  label: "checking",
+  className: "status-neutral",
+  title: "Health check in progress",
+  lastCheckedAt: null,
+};
+
 export function AgentsPage() {
   const [agents, setAgents] = useState<KnownAgent[]>([]);
+  const [agentStatuses, setAgentStatuses] = useState<
+    Record<string, AgentStatusState>
+  >({});
   const [form, setForm] = useState<FormState>(initialFormState);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingStatuses, setIsRefreshingStatuses] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -37,16 +61,84 @@ export function AgentsPage() {
     try {
       const result = await listAgents();
       setAgents(result);
+      await refreshAgentStatuses(result);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to load agents");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load agents",
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
+  async function refreshAgentStatuses(agentList = agents) {
+    if (agentList.length === 0) {
+      setAgentStatuses({});
+      return;
+    }
+
+    setIsRefreshingStatuses(true);
+
+    setAgentStatuses((current) => {
+      const next = { ...current };
+
+      for (const agent of agentList) {
+        if (!next[agent.agent_id]) {
+          next[agent.agent_id] = checkingStatus;
+        }
+      }
+
+      return next;
+    });
+
+    const results = await Promise.all(
+      agentList.map(async (agent) => {
+        try {
+          const health = await getAgentHealth(agent.agent_id);
+          return {
+            agent,
+            status: makeOnlineStatus(health),
+          };
+        } catch (error) {
+          return {
+            agent,
+            status: makeOfflineStatus(error),
+          };
+        }
+      }),
+    );
+
+    setAgentStatuses((current) => {
+      const next = { ...current };
+
+      for (const result of results) {
+        next[result.agent.agent_id] = result.status;
+      }
+
+      return next;
+    });
+
+    setIsRefreshingStatuses(false);
+  }
+
   useEffect(() => {
     void refreshAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (agents.length === 0) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshAgentStatuses();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,10 +169,18 @@ export function AgentsPage() {
       });
 
       setAgents((current) => [...current, created]);
+      setAgentStatuses((current) => ({
+        ...current,
+        [created.agent_id]: checkingStatus,
+      }));
       setForm(initialFormState);
       setSuccessMessage(`Agent ${created.agent_id} added.`);
+
+      await refreshAgentStatuses([...agents, created]);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to add agent");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to add agent",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -98,9 +198,16 @@ export function AgentsPage() {
     try {
       await deleteAgent(agentId);
       setAgents((current) => current.filter((agent) => agent.agent_id !== agentId));
+      setAgentStatuses((current) => {
+        const next = { ...current };
+        delete next[agentId];
+        return next;
+      });
       setSuccessMessage(`Agent ${agentId} deleted.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to delete agent");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to delete agent",
+      );
     }
   }
 
@@ -119,9 +226,12 @@ export function AgentsPage() {
     try {
       await clearAgents();
       setAgents([]);
+      setAgentStatuses({});
       setSuccessMessage("All known agents cleared.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to clear agents");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to clear agents",
+      );
     }
   }
 
@@ -133,8 +243,13 @@ export function AgentsPage() {
           <p>Manage known agents registered in the controller.</p>
         </div>
 
-        <button className="secondary-button" onClick={() => void refreshAgents()}>
-          Refresh
+        <button
+          className="secondary-button"
+          onClick={() => void refreshAgents()}
+          disabled={isLoading}
+        >
+          <IconRefresh size={16} />
+          {isLoading ? "Refreshing..." : "Refresh"}
         </button>
       </section>
 
@@ -200,7 +315,12 @@ export function AgentsPage() {
         <div className="section-heading">
           <div>
             <h3>Known agents</h3>
-            <p>{agents.length} registered agent{agents.length === 1 ? "" : "s"}</p>
+            <p>
+              {agents.length} registered agent{agents.length === 1 ? "" : "s"}
+              {agents.length > 0
+                ? ` · statuses ${isRefreshingStatuses ? "refreshing" : "checked"}`
+                : ""}
+            </p>
           </div>
 
           <button
@@ -230,36 +350,64 @@ export function AgentsPage() {
                   <th>ID</th>
                   <th>Name</th>
                   <th>Endpoint</th>
+                  <th>Status</th>
                   <th>Created</th>
                   <th />
                 </tr>
               </thead>
 
               <tbody>
-                {agents.map((agent) => (
-                  <tr key={agent.agent_id}>
-                    <td>
-                      <code>{agent.agent_id}</code>
-                    </td>
-                    <td>{agent.display_name || "Unnamed agent"}</td>
-                    <td>
-                      {agent.host}:{agent.port}
-                    </td>
-                    <td>{formatUnixTime(agent.created_at)}</td>
-                    <td className="table-actions">
-                      <Link className="small-button" to={`/agents/${agent.agent_id}`}>
-                        Open
-                      </Link>
+                {agents.map((agent) => {
+                  const agentStatus =
+                    agentStatuses[agent.agent_id] ?? checkingStatus;
 
-                      <button
-                        className="small-button danger-text"
-                        onClick={() => void handleDelete(agent.agent_id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  return (
+                    <tr key={agent.agent_id}>
+                      <td>
+                        <code>{agent.agent_id}</code>
+                      </td>
+
+                      <td>{agent.display_name || "Unnamed agent"}</td>
+
+                      <td>
+                        {agent.host}:{agent.port}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`status-badge ${agentStatus.className}`}
+                          title={agentStatus.title}
+                        >
+                          {agentStatus.label}
+                        </span>
+
+                        {agentStatus.lastCheckedAt && (
+                          <div className="table-sub-text">
+                            {agentStatus.lastCheckedAt.toLocaleTimeString()}
+                          </div>
+                        )}
+                      </td>
+
+                      <td>{formatUnixTime(agent.created_at)}</td>
+
+                      <td className="table-actions">
+                        <Link
+                          className="small-button"
+                          to={`/agents/${agent.agent_id}`}
+                        >
+                          Open
+                        </Link>
+
+                        <button
+                          className="small-button danger-text"
+                          onClick={() => void handleDelete(agent.agent_id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -269,10 +417,32 @@ export function AgentsPage() {
   );
 }
 
-function formatUnixTime(value: number) {
-  if (!value) {
-    return "—";
-  }
+function makeOnlineStatus(health: KnownAgentWithHealth): AgentStatusState {
+  const normalized = health.health.status.toLowerCase();
 
-  return new Date(value * 1000).toLocaleString();
+  return {
+    label: normalized === "ok" ? "OK" : health.health.status,
+    className: statusClass(health.health.status),
+    title: `Agent responded. Hostname: ${health.health.hostname || "unknown"}`,
+    lastCheckedAt: new Date(),
+  };
+}
+
+function makeOfflineStatus(error: unknown): AgentStatusState {
+  return {
+    label: "OFFLINE",
+    className: "status-danger",
+    title: error instanceof Error ? error.message : "Agent health check failed",
+    lastCheckedAt: new Date(),
+  };
+}
+
+function getFailedAgentFromResult(error: unknown, agents: KnownAgent[]) {
+  const message = error instanceof Error ? error.message : "";
+
+  return (
+    agents.find((agent) => message.includes(agent.agent_id)) ??
+    agents.find((agent) => message.includes(agent.host)) ??
+    null
+  );
 }

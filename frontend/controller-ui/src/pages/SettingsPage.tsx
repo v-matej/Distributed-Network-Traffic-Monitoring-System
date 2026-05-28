@@ -1,12 +1,26 @@
 import { useEffect, useState } from "react";
+import {
+  IconMoon,
+  IconRefresh,
+  IconSun,
+  IconTrash,
+} from "@tabler/icons-react";
 
 import { clearAgents, listAgents } from "../lib/api";
 
+import {
+  getStoredTheme,
+  getThemeLabel,
+  setStoredTheme,
+} from "../lib/theme";
+
 import type { KnownAgent } from "../lib/api";
+import type { UiTheme } from "../lib/theme";
 
 export function SettingsPage() {
   const [agents, setAgents] = useState<KnownAgent[]>([]);
   const [confirmText, setConfirmText] = useState("");
+  const [theme, setTheme] = useState<UiTheme>(() => getStoredTheme());
 
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
@@ -28,6 +42,12 @@ export function SettingsPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleThemeChange(nextTheme: UiTheme) {
+    setTheme(nextTheme);
+    setStoredTheme(nextTheme);
+    setSuccessMessage(`Appearance changed to ${getThemeLabel(nextTheme)}.`);
   }
 
   async function handleClearAgents() {
@@ -72,7 +92,7 @@ export function SettingsPage() {
       <section className="page-header">
         <div>
           <h2>Settings</h2>
-          <p>Controller storage and frontend runtime information.</p>
+          <p>Controller storage, appearance, and frontend runtime information.</p>
         </div>
 
         <button
@@ -80,6 +100,7 @@ export function SettingsPage() {
           onClick={() => void loadSettings()}
           disabled={isLoading}
         >
+          <IconRefresh size={16} />
           {isLoading ? "Refreshing..." : "Refresh"}
         </button>
       </section>
@@ -88,6 +109,46 @@ export function SettingsPage() {
       {successMessage && (
         <div className="alert alert-success">{successMessage}</div>
       )}
+
+      <section className="page-card">
+        <div className="section-heading">
+          <div>
+            <h3>Appearance</h3>
+            <p>
+              Choose the interface theme. Dark is optimized for monitoring, light
+              is better for presentation and classroom projection.
+            </p>
+          </div>
+        </div>
+
+        <div className="theme-mode-grid">
+          <button
+            type="button"
+            className={`theme-option-card ${theme === "dark" ? "active" : ""}`}
+            onClick={() => handleThemeChange("dark")}
+          >
+            <IconMoon size={22} />
+
+            <div>
+              <strong>Dark terminal</strong>
+              <span>Cyber console style for monitoring sessions.</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`theme-option-card ${theme === "light" ? "active" : ""}`}
+            onClick={() => handleThemeChange("light")}
+          >
+            <IconSun size={22} />
+
+            <div>
+              <strong>Light presentation</strong>
+              <span>Clean bright style for professor review and projection.</span>
+            </div>
+          </button>
+        </div>
+      </section>
 
       <section className="two-column">
         <div className="page-card">
@@ -147,6 +208,11 @@ export function SettingsPage() {
               <dt>Refresh model</dt>
               <dd>Manual refresh plus polling on active captures</dd>
             </div>
+
+            <div>
+              <dt>Current theme</dt>
+              <dd>{getThemeLabel(theme)}</dd>
+            </div>
           </dl>
         </div>
       </section>
@@ -177,6 +243,7 @@ export function SettingsPage() {
             disabled={isClearing || confirmText !== "CLEAR"}
             onClick={() => void handleClearAgents()}
           >
+            <IconTrash size={16} />
             {isClearing ? "Clearing..." : "Clear controller storage"}
           </button>
         </div>
