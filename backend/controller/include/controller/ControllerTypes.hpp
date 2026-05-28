@@ -83,6 +83,15 @@ struct RemoteCaptureSessionInfo {
     std::time_t finished_at = 0;
 };
 
+struct ControllerStoredCaptureInfo {
+    std::string agent_id;
+    std::string capture_id;
+    std::string local_path;
+    std::uint64_t file_size_bytes = 0;
+    std::time_t fetched_at = 0;
+    bool exists = false;
+};
+
 struct KnownAgentWithHealth {
     KnownAgent agent;
     RemoteHealthInfo health;

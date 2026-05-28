@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
+  fetchAgentCaptureToController,
   getAgentCapture,
   getAgentCaptureDownloadUrl,
+  getControllerStoredCapture,
+  getControllerStoredCaptureDownloadUrl,
   stopAgentCapture,
 } from "../lib/api";
 
@@ -21,6 +24,7 @@ import {
 } from "../lib/format";
 
 import type {
+  ControllerStoredCaptureInfo,
   KnownAgent,
   RemoteCaptureSessionInfo,
 } from "../lib/api";
@@ -30,10 +34,13 @@ export function CaptureDetailPage() {
 
   const [agent, setAgent] = useState<KnownAgent | null>(null);
   const [capture, setCapture] = useState<RemoteCaptureSessionInfo | null>(null);
+  const [storedCapture, setStoredCapture] =
+    useState<ControllerStoredCaptureInfo | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isFetchingToController, setIsFetchingToController] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,6 +49,21 @@ export function CaptureDetailPage() {
   const derivedStats = useMemo(() => {
     return capture ? getCaptureDerivedStats(capture) : null;
   }, [capture]);
+
+  async function loadStoredCaptureInfo(options: { silent?: boolean } = {}) {
+    if (!agentId || !captureId) {
+      return;
+    }
+
+    try {
+      const result = await getControllerStoredCapture(agentId, captureId);
+      setStoredCapture(result.stored_capture);
+    } catch {
+      if (!options.silent) {
+        setStoredCapture(null);
+      }
+    }
+  }
 
   async function loadCapture(options: { silent?: boolean } = {}) {
     if (!agentId || !captureId) {
@@ -58,6 +80,8 @@ export function CaptureDetailPage() {
       setAgent(result.agent);
       setCapture(result.capture);
       setLastLoadedAt(new Date());
+
+      void loadStoredCaptureInfo({ silent: true });
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load capture",
@@ -92,8 +116,34 @@ export function CaptureDetailPage() {
     }
   }
 
+  async function handleFetchToController() {
+    if (!agentId || !captureId) {
+      return;
+    }
+
+    setIsFetchingToController(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await fetchAgentCaptureToController(agentId, captureId);
+      setStoredCapture(result.stored_capture);
+      setSuccessMessage(`Capture ${captureId} fetched to controller storage.`);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch capture to controller",
+      );
+    } finally {
+      setIsFetchingToController(false);
+    }
+  }
+
   useEffect(() => {
     void loadCapture();
+    void loadStoredCaptureInfo();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, captureId]);
 
@@ -130,19 +180,53 @@ export function CaptureDetailPage() {
           <Link className="text-link" to="/captures">
             ← Back to captures
           </Link>
+
           <h2>Capture detail</h2>
+
           <p>
             {agent
-              ? `${agent.display_name || agent.agent_id} · ${agent.host}:${agent.port}`
+              ? `${agent.display_name || agent.agent_id} · ${agent.host}:${
+                  agent.port
+                }`
               : "Loading capture agent..."}
           </p>
         </div>
 
         <div className="capture-detail-actions">
           {agent && capture && !isActiveCapture(capture) && (
-            <a className="primary-button"
-            href={getAgentCaptureDownloadUrl(agent.agent_id, capture.capture_id)}
-            download> Download PCAP </a>
+            <>
+              <a
+                className="primary-button"
+                href={getAgentCaptureDownloadUrl(
+                  agent.agent_id,
+                  capture.capture_id,
+                )}
+                download
+              >
+                Download PCAP
+              </a>
+
+              <button
+                className="secondary-button"
+                onClick={() => void handleFetchToController()}
+                disabled={isFetchingToController}
+              >
+                {isFetchingToController ? "Fetching..." : "Fetch to controller"}
+              </button>
+
+              {storedCapture?.exists && (
+                <a
+                  className="secondary-button"
+                  href={getControllerStoredCaptureDownloadUrl(
+                    agent.agent_id,
+                    capture.capture_id,
+                  )}
+                  download
+                >
+                  Download stored
+                </a>
+              )}
+            </>
           )}
 
           <button
@@ -404,6 +488,46 @@ export function CaptureDetailPage() {
             </div>
 
             <div className="capture-detail-section">
+              <h4>Controller storage</h4>
+
+              {storedCapture?.exists ? (
+                <dl className="compact-detail-list">
+                  <div>
+                    <dt>Status</dt>
+                    <dd>
+                      <span className="status-badge status-good">
+                        Stored on controller
+                      </span>
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Local path</dt>
+                    <dd>
+                      <code>{storedCapture.local_path}</code>
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Stored size</dt>
+                    <dd>{formatBytes(storedCapture.file_size_bytes)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Fetched at</dt>
+                    <dd>{formatUnixTime(storedCapture.fetched_at)}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <div className="diagnostic-box">
+                  This capture is not stored on the controller yet. Use{" "}
+                  <strong>Fetch to controller</strong> after the capture
+                  completes to prepare it for analysis.
+                </div>
+              )}
+            </div>
+
+            <div className="capture-detail-section">
               <h4>Diagnostics</h4>
 
               {capture.result.error_message ? (
@@ -423,9 +547,18 @@ export function CaptureDetailPage() {
                 </div>
               )}
 
-              {!isActiveCapture(capture) && (
+              {!isActiveCapture(capture) && storedCapture?.exists && (
                 <div className="future-action-box">
-                  PCAP download is available from the page header. Viewer controls can be added here later.
+                  Controller-local PCAP copy is ready for the future analysis
+                  module. Analysis should read from{" "}
+                  <code>{storedCapture.local_path}</code>.
+                </div>
+              )}
+
+              {!isActiveCapture(capture) && !storedCapture?.exists && (
+                <div className="future-action-box">
+                  PCAP can be downloaded directly through the agent proxy, or
+                  fetched into controller storage for later analysis.
                 </div>
               )}
             </div>

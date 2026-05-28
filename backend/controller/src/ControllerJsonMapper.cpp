@@ -114,6 +114,17 @@ json capture_to_json_value(const RemoteCaptureSessionInfo& capture) {
     return j;
 }
 
+json stored_capture_to_json_value(const ControllerStoredCaptureInfo& stored_capture) {
+    json j;
+    j["agent_id"] = stored_capture.agent_id;
+    j["capture_id"] = stored_capture.capture_id;
+    j["local_path"] = stored_capture.local_path;
+    j["file_size_bytes"] = stored_capture.file_size_bytes;
+    j["fetched_at"] = stored_capture.fetched_at;
+    j["exists"] = stored_capture.exists;
+    return j;
+}
+
 bool parse_remote_capture_config_json(
     const json& j,
     RemoteCaptureConfig& config,
@@ -325,6 +336,23 @@ std::string to_json(const KnownAgent& agent, const std::vector<RemoteCaptureSess
 
     for (const auto& capture : captures) {
         j["captures"].push_back(capture_to_json_value(capture));
+    }
+
+    return j.dump(4);
+}
+
+std::string to_json(const ControllerStoredCaptureInfo& stored_capture) {
+    json j;
+    j["stored_capture"] = stored_capture_to_json_value(stored_capture);
+    return j.dump(4);
+}
+
+std::string to_json(const std::vector<ControllerStoredCaptureInfo>& stored_captures) {
+    json j;
+    j["stored_captures"] = json::array();
+
+    for (const auto& stored_capture : stored_captures) {
+        j["stored_captures"].push_back(stored_capture_to_json_value(stored_capture));
     }
 
     return j.dump(4);

@@ -158,6 +158,23 @@ export type AgentCapturesResponse = {
   captures: RemoteCaptureSessionInfo[];
 };
 
+export type ControllerStoredCaptureInfo = {
+  agent_id: string;
+  capture_id: string;
+  local_path: string;
+  file_size_bytes: number;
+  fetched_at: number;
+  exists: boolean;
+};
+
+export type ControllerStoredCaptureResponse = {
+  stored_capture: ControllerStoredCaptureInfo;
+};
+
+export type ControllerStoredCapturesResponse = {
+  stored_captures: ControllerStoredCaptureInfo[];
+};
+
 export async function startAgentCapture(
   agentId: string,
   request: RemoteCaptureRequest,
@@ -197,4 +214,40 @@ export async function stopAgentCapture(
 
 export function getAgentCaptureDownloadUrl(agentId: string, captureId: string) {
   return `/api/agents/${agentId}/captures/${captureId}/download`;
+}
+
+export async function fetchAgentCaptureToController(
+  agentId: string,
+  captureId: string,
+): Promise<ControllerStoredCaptureResponse> {
+  return requestJson<ControllerStoredCaptureResponse>(
+    `/api/agents/${agentId}/captures/${captureId}/fetch`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function getControllerStoredCapture(
+  agentId: string,
+  captureId: string,
+): Promise<ControllerStoredCaptureResponse> {
+  return requestJson<ControllerStoredCaptureResponse>(
+    `/api/controller/captures/${agentId}/${captureId}`,
+  );
+}
+
+export async function listControllerStoredCaptures(): Promise<ControllerStoredCaptureInfo[]> {
+  const data = await requestJson<ControllerStoredCapturesResponse>(
+    "/api/controller/captures",
+  );
+
+  return data.stored_captures;
+}
+
+export function getControllerStoredCaptureDownloadUrl(
+  agentId: string,
+  captureId: string,
+) {
+  return `/api/controller/captures/${agentId}/${captureId}/download`;
 }

@@ -15,6 +15,8 @@ std::string to_json(const KnownAgentWithHealth& agent_with_health);
 std::string to_json(const KnownAgent& agent, const std::vector<RemoteInterfaceInfo>& interfaces);
 std::string to_json(const KnownAgent& agent, const RemoteCaptureSessionInfo& capture);
 std::string to_json(const KnownAgent& agent, const std::vector<RemoteCaptureSessionInfo>& captures);
+std::string to_json(const ControllerStoredCaptureInfo& stored_capture);
+std::string to_json(const std::vector<ControllerStoredCaptureInfo>& stored_captures);
 
 bool parse_add_agent_request_json(
     const std::string& request_body,

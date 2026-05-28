@@ -8,11 +8,13 @@
 
 namespace {
 constexpr const char* kKnownAgentsStoragePath = "data/known_agents.json";
+constexpr const char* kCaptureStorageRoot = "data/captures";
 }
 
 int main() {
     auto agent_registry = std::make_shared<controller::AgentRegistry>();
     auto controller_service = std::make_shared<controller::ControllerService>(agent_registry);
+    controller_service->set_capture_storage_root(kCaptureStorageRoot);
 
     std::string error_message;
     if (!agent_registry->set_storage_path(kKnownAgentsStoragePath, error_message)) {

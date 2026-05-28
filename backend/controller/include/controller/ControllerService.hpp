@@ -21,6 +21,8 @@ public:
     std::vector<KnownAgent> list_agents() const;
     std::optional<KnownAgent> get_agent(const std::string& agent_id) const;
 
+    void set_capture_storage_root(std::string capture_storage_root);
+
     bool get_agent_health(
         const std::string& agent_id,
         KnownAgentWithHealth& result,
@@ -81,10 +83,36 @@ public:
         int& response_status
     ) const;
 
+    bool fetch_agent_capture_to_controller(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        ControllerStoredCaptureInfo& stored_capture,
+        std::string& error_message,
+        int& response_status
+    ) const;
+
+    std::vector<ControllerStoredCaptureInfo> list_controller_captures() const;
+
+    bool get_controller_capture(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        ControllerStoredCaptureInfo& stored_capture,
+        std::string& error_message
+    ) const;
+
+    bool read_controller_capture_content(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        std::string& content,
+        ControllerStoredCaptureInfo& stored_capture,
+        std::string& error_message
+    ) const;
+
 private:
     AgentEndpoint endpoint_from_agent(const KnownAgent& agent) const;
 
     std::shared_ptr<AgentRegistry> agent_registry_;
+    std::string capture_storage_root_ = "data/captures";
 };
 
 }  // namespace controller

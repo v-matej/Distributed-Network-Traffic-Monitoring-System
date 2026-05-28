@@ -265,6 +265,86 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 200;
     });
 
+        server_.Post(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+)/fetch)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+        int response_status = 0;
+
+        if (!controller_service_->fetch_agent_capture_to_controller(
+                agent_id,
+                capture_id,
+                stored_capture,
+                route_error_message,
+                response_status
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = map_capture_proxy_status(response_status);
+            return;
+        }
+
+        res.set_content(to_json(stored_capture), "application/json");
+        res.status = 201;
+    });
+
+    server_.Get("/api/controller/captures", [this](const httplib::Request&, httplib::Response& res) {
+        const auto stored_captures = controller_service_->list_controller_captures();
+        res.set_content(to_json(stored_captures), "application/json");
+        res.status = 200;
+    });
+
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+
+        if (!controller_service_->get_controller_capture(
+                agent_id,
+                capture_id,
+                stored_capture,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_content(to_json(stored_capture), "application/json");
+        res.status = 200;
+    });
+
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+)/download)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        std::string content;
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+
+        if (!controller_service_->read_controller_capture_content(
+                agent_id,
+                capture_id,
+                content,
+                stored_capture,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_header(
+            "Content-Disposition",
+            "attachment; filename=\"" + capture_id + ".pcap\""
+        );
+        res.set_content(content, "application/vnd.tcpdump.pcap");
+        res.status = 200;
+    });
+
     server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();
