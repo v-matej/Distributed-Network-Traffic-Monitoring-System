@@ -17,6 +17,7 @@ std::string to_json(const KnownAgent& agent, const RemoteCaptureSessionInfo& cap
 std::string to_json(const KnownAgent& agent, const std::vector<RemoteCaptureSessionInfo>& captures);
 std::string to_json(const ControllerStoredCaptureInfo& stored_capture);
 std::string to_json(const std::vector<ControllerStoredCaptureInfo>& stored_captures);
+std::string to_json(const PcapAnalysisResult& analysis);
 
 bool parse_add_agent_request_json(
     const std::string& request_body,

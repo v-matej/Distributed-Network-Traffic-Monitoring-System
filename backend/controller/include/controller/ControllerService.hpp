@@ -108,6 +108,13 @@ public:
         std::string& error_message
     ) const;
 
+    bool analyze_controller_capture(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        PcapAnalysisResult& analysis,
+        std::string& error_message
+    ) const;
+
 private:
     AgentEndpoint endpoint_from_agent(const KnownAgent& agent) const;
 

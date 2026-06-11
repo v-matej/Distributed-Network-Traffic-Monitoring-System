@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
+  analyzeControllerStoredCapture,
   fetchAgentCaptureToController,
   getAgentCapture,
   getAgentCaptureDownloadUrl,
@@ -26,6 +27,8 @@ import {
 import type {
   ControllerStoredCaptureInfo,
   KnownAgent,
+  PcapAnalysisCounter,
+  PcapAnalysisResult,
   RemoteCaptureSessionInfo,
 } from "../lib/api";
 
@@ -36,11 +39,13 @@ export function CaptureDetailPage() {
   const [capture, setCapture] = useState<RemoteCaptureSessionInfo | null>(null);
   const [storedCapture, setStoredCapture] =
     useState<ControllerStoredCaptureInfo | null>(null);
+  const [analysis, setAnalysis] = useState<PcapAnalysisResult | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isFetchingToController, setIsFetchingToController] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -128,6 +133,7 @@ export function CaptureDetailPage() {
     try {
       const result = await fetchAgentCaptureToController(agentId, captureId);
       setStoredCapture(result.stored_capture);
+      setAnalysis(null);
       setSuccessMessage(`Capture ${captureId} fetched to controller storage.`);
     } catch (error) {
       setErrorMessage(
@@ -137,6 +143,28 @@ export function CaptureDetailPage() {
       );
     } finally {
       setIsFetchingToController(false);
+    }
+  }
+
+  async function handleAnalyzeCapture() {
+    if (!agentId || !captureId) {
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await analyzeControllerStoredCapture(agentId, captureId);
+      setAnalysis(result.analysis);
+      setSuccessMessage(`Capture ${captureId} analyzed successfully.`);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to analyze capture",
+      );
+    } finally {
+      setIsAnalyzing(false);
     }
   }
 
@@ -206,25 +234,39 @@ export function CaptureDetailPage() {
                 Download PCAP
               </a>
 
-              <button
-                className="secondary-button"
-                onClick={() => void handleFetchToController()}
-                disabled={isFetchingToController}
-              >
-                {isFetchingToController ? "Fetching..." : "Fetch to controller"}
-              </button>
+              {!storedCapture?.exists && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void handleFetchToController()}
+                  disabled={isFetchingToController}
+                >
+                  {isFetchingToController ? "Fetching..." : "Fetch to controller"}
+                </button>
+              )}
 
               {storedCapture?.exists && (
-                <a
-                  className="secondary-button"
-                  href={getControllerStoredCaptureDownloadUrl(
-                    agent.agent_id,
-                    capture.capture_id,
-                  )}
-                  download
-                >
-                  Download stored
-                </a>
+                <>
+                  <span className="status-badge status-good">Stored on controller</span>
+
+                  <button
+                    className="secondary-button"
+                    onClick={() => void handleAnalyzeCapture()}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? "Analyzing..." : "Analyze"}
+                  </button>
+
+                  <a
+                    className="secondary-button"
+                    href={getControllerStoredCaptureDownloadUrl(
+                      agent.agent_id,
+                      capture.capture_id,
+                    )}
+                    download
+                  >
+                    Download stored
+                  </a>
+                </>
               )}
             </>
           )}
@@ -301,6 +343,86 @@ export function CaptureDetailPage() {
               <p>Average packets per second.</p>
             </div>
           </section>
+
+          {analysis && (
+            <section className="page-card analysis-section">
+              <div className="section-heading">
+                <div>
+                  <h3>PCAP analysis</h3>
+                  <p>
+                    Controller-side analysis from stored PCAP file. Analyzed at{" "}
+                    {formatUnixTime(analysis.analyzed_at)}.
+                  </p>
+                </div>
+
+                <span className="status-badge status-good">analysis ready</span>
+              </div>
+
+              <section className="metric-grid capture-metric-grid">
+                <div className="metric-card">
+                  <span className="metric-label">Analyzed packets</span>
+                  <strong>{analysis.packet_count}</strong>
+                  <p>Datalink: {analysis.datalink_name || "unknown"}</p>
+                </div>
+
+                <div className="metric-card">
+                  <span className="metric-label">Analyzed bytes</span>
+                  <strong>{formatBytes(analysis.byte_count)}</strong>
+                  <p>File size: {formatBytes(analysis.file_size_bytes)}</p>
+                </div>
+
+                <div className="metric-card">
+                  <span className="metric-label">PCAP duration</span>
+                  <strong>{formatDurationSeconds(Math.round(analysis.duration_seconds))}</strong>
+                  <p>
+                    {formatUnixTime(analysis.first_packet_time)} →{" "}
+                    {formatUnixTime(analysis.last_packet_time)}
+                  </p>
+                </div>
+
+                <div className="metric-card">
+                  <span className="metric-label">Controller file</span>
+                  <strong>{analysis.datalink_name || "PCAP"}</strong>
+                  <p>Read from local controller storage.</p>
+                </div>
+              </section>
+
+              <div className="protocol-card-grid">
+                <ProtocolCard label="Ethernet" value={analysis.protocols.ethernet} />
+                <ProtocolCard label="ARP" value={analysis.protocols.arp} />
+                <ProtocolCard label="IPv4" value={analysis.protocols.ipv4} />
+                <ProtocolCard label="IPv6" value={analysis.protocols.ipv6} />
+                <ProtocolCard label="TCP" value={analysis.protocols.tcp} />
+                <ProtocolCard label="UDP" value={analysis.protocols.udp} />
+                <ProtocolCard label="ICMP" value={analysis.protocols.icmp} />
+                <ProtocolCard label="ICMPv6" value={analysis.protocols.icmpv6} />
+                <ProtocolCard label="Other L3" value={analysis.protocols.other_l3} />
+                <ProtocolCard label="Other L4" value={analysis.protocols.other_l4} />
+              </div>
+
+              <section className="analysis-grid">
+                <AnalysisCounterTable
+                  title="Top source IPs"
+                  counters={analysis.top_source_ips}
+                />
+
+                <AnalysisCounterTable
+                  title="Top destination IPs"
+                  counters={analysis.top_destination_ips}
+                />
+
+                <AnalysisCounterTable
+                  title="Top source ports"
+                  counters={analysis.top_source_ports}
+                />
+
+                <AnalysisCounterTable
+                  title="Top destination ports"
+                  counters={analysis.top_destination_ports}
+                />
+              </section>
+            </section>
+          )}
 
           <section className="capture-detail-grid">
             <div className="capture-detail-section">
@@ -547,11 +669,18 @@ export function CaptureDetailPage() {
                 </div>
               )}
 
-              {!isActiveCapture(capture) && storedCapture?.exists && (
+              {!isActiveCapture(capture) && storedCapture?.exists && !analysis && (
                 <div className="future-action-box">
-                  Controller-local PCAP copy is ready for the future analysis
-                  module. Analysis should read from{" "}
-                  <code>{storedCapture.local_path}</code>.
+                  Controller-local PCAP copy is ready. Click{" "}
+                  <strong>Analyze</strong> to calculate protocol counters, top
+                  IP addresses, and top ports.
+                </div>
+              )}
+
+              {!isActiveCapture(capture) && storedCapture?.exists && analysis && (
+                <div className="future-action-box">
+                  Analysis is available and was calculated from{" "}
+                  <code>{analysis.local_path}</code>.
                 </div>
               )}
 
@@ -564,6 +693,57 @@ export function CaptureDetailPage() {
             </div>
           </section>
         </>
+      )}
+    </div>
+  );
+}
+
+function ProtocolCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="protocol-analysis-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AnalysisCounterTable({
+  title,
+  counters,
+}: {
+  title: string;
+  counters: PcapAnalysisCounter[];
+}) {
+  return (
+    <div className="analysis-card">
+      <h4>{title}</h4>
+
+      {counters.length === 0 ? (
+        <p className="muted-text">No values found.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Value</th>
+                <th>Packets</th>
+                <th>Bytes</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {counters.map((counter) => (
+                <tr key={counter.key}>
+                  <td>
+                    <code>{counter.key}</code>
+                  </td>
+                  <td>{counter.packets}</td>
+                  <td>{formatBytes(counter.bytes)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

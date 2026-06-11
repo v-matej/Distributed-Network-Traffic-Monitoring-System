@@ -2,6 +2,8 @@
 
 #include "controller/HttpAgentClient.hpp"
 
+#include "controller/PcapAnalyzer.hpp"
+
 #include <chrono>
 #include <cctype>
 #include <filesystem>
@@ -451,6 +453,21 @@ bool ControllerService::read_controller_capture_content(
     );
 
     return true;
+}
+
+bool ControllerService::analyze_controller_capture(
+    const std::string& agent_id,
+    const std::string& capture_id,
+    PcapAnalysisResult& analysis,
+    std::string& error_message
+) const {
+    ControllerStoredCaptureInfo stored_capture;
+
+    if (!get_controller_capture(agent_id, capture_id, stored_capture, error_message)) {
+        return false;
+    }
+
+    return PcapAnalyzer::analyze(stored_capture, analysis, error_message);
 }
 
 AgentEndpoint ControllerService::endpoint_from_agent(const KnownAgent& agent) const {

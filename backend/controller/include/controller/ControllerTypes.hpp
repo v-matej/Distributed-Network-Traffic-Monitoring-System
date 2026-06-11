@@ -92,6 +92,48 @@ struct ControllerStoredCaptureInfo {
     bool exists = false;
 };
 
+struct PcapAnalysisCounter {
+    std::string key;
+    std::uint64_t packets = 0;
+    std::uint64_t bytes = 0;
+};
+
+struct PcapProtocolCounters {
+    std::uint64_t ethernet = 0;
+    std::uint64_t arp = 0;
+    std::uint64_t ipv4 = 0;
+    std::uint64_t ipv6 = 0;
+    std::uint64_t tcp = 0;
+    std::uint64_t udp = 0;
+    std::uint64_t icmp = 0;
+    std::uint64_t icmpv6 = 0;
+    std::uint64_t other_l3 = 0;
+    std::uint64_t other_l4 = 0;
+};
+
+struct PcapAnalysisResult {
+    std::string agent_id;
+    std::string capture_id;
+    std::string local_path;
+    std::string datalink_name;
+
+    std::uint64_t file_size_bytes = 0;
+    std::uint64_t packet_count = 0;
+    std::uint64_t byte_count = 0;
+
+    std::time_t analyzed_at = 0;
+    std::time_t first_packet_time = 0;
+    std::time_t last_packet_time = 0;
+    double duration_seconds = 0.0;
+
+    PcapProtocolCounters protocols;
+
+    std::vector<PcapAnalysisCounter> top_source_ips;
+    std::vector<PcapAnalysisCounter> top_destination_ips;
+    std::vector<PcapAnalysisCounter> top_source_ports;
+    std::vector<PcapAnalysisCounter> top_destination_ports;
+};
+
 struct KnownAgentWithHealth {
     KnownAgent agent;
     RemoteHealthInfo health;

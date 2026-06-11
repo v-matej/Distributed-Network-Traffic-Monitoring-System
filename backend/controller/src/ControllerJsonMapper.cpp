@@ -284,6 +284,62 @@ bool parse_remote_capture_session_json(
     return true;
 }
 
+json analysis_counter_to_json_value(const PcapAnalysisCounter& counter) {
+    json j;
+    j["key"] = counter.key;
+    j["packets"] = counter.packets;
+    j["bytes"] = counter.bytes;
+    return j;
+}
+
+json analysis_counter_vector_to_json_value(
+    const std::vector<PcapAnalysisCounter>& counters
+) {
+    json j = json::array();
+
+    for (const auto& counter : counters) {
+        j.push_back(analysis_counter_to_json_value(counter));
+    }
+
+    return j;
+}
+
+json protocol_counters_to_json_value(const PcapProtocolCounters& protocols) {
+    json j;
+    j["ethernet"] = protocols.ethernet;
+    j["arp"] = protocols.arp;
+    j["ipv4"] = protocols.ipv4;
+    j["ipv6"] = protocols.ipv6;
+    j["tcp"] = protocols.tcp;
+    j["udp"] = protocols.udp;
+    j["icmp"] = protocols.icmp;
+    j["icmpv6"] = protocols.icmpv6;
+    j["other_l3"] = protocols.other_l3;
+    j["other_l4"] = protocols.other_l4;
+    return j;
+}
+
+json pcap_analysis_to_json_value(const PcapAnalysisResult& analysis) {
+    json j;
+    j["agent_id"] = analysis.agent_id;
+    j["capture_id"] = analysis.capture_id;
+    j["local_path"] = analysis.local_path;
+    j["datalink_name"] = analysis.datalink_name;
+    j["file_size_bytes"] = analysis.file_size_bytes;
+    j["packet_count"] = analysis.packet_count;
+    j["byte_count"] = analysis.byte_count;
+    j["analyzed_at"] = analysis.analyzed_at;
+    j["first_packet_time"] = analysis.first_packet_time;
+    j["last_packet_time"] = analysis.last_packet_time;
+    j["duration_seconds"] = analysis.duration_seconds;
+    j["protocols"] = protocol_counters_to_json_value(analysis.protocols);
+    j["top_source_ips"] = analysis_counter_vector_to_json_value(analysis.top_source_ips);
+    j["top_destination_ips"] = analysis_counter_vector_to_json_value(analysis.top_destination_ips);
+    j["top_source_ports"] = analysis_counter_vector_to_json_value(analysis.top_source_ports);
+    j["top_destination_ports"] = analysis_counter_vector_to_json_value(analysis.top_destination_ports);
+    return j;
+}
+
 }  // namespace
 
 std::string make_error_json(const std::string& message) {
@@ -355,6 +411,12 @@ std::string to_json(const std::vector<ControllerStoredCaptureInfo>& stored_captu
         j["stored_captures"].push_back(stored_capture_to_json_value(stored_capture));
     }
 
+    return j.dump(4);
+}
+
+std::string to_json(const PcapAnalysisResult& analysis) {
+    json j;
+    j["analysis"] = pcap_analysis_to_json_value(analysis);
     return j.dump(4);
 }
 

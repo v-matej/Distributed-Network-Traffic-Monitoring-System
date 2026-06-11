@@ -1949,3 +1949,104 @@ html[data-theme="light"] .sidebar-status-meta {
   background: rgba(232, 242, 235, 0.9) !important;
   border-color: rgba(126, 160, 138, 0.46) !important;
 }
+
+.analysis-section {
+  border-color: rgba(0, 229, 255, 0.28);
+}
+
+.protocol-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.protocol-analysis-card {
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(0, 229, 255, 0.055), transparent),
+    rgba(8, 12, 16, 0.72);
+  padding: 12px;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.protocol-analysis-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 229, 255, 0.34);
+}
+
+.protocol-analysis-card span {
+  display: block;
+  font-family: "Share Tech Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.protocol-analysis-card strong {
+  display: block;
+  margin-top: 6px;
+  font-family: "Share Tech Mono", ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--accent-cyan);
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.analysis-card {
+  border: 1px solid var(--border);
+  background: rgba(8, 12, 16, 0.52);
+  padding: 14px;
+}
+
+.analysis-card h4 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-theme="light"] .analysis-section {
+  border-color: rgba(0, 111, 134, 0.32) !important;
+}
+
+html[data-theme="light"] .protocol-analysis-card,
+html[data-theme="light"] .analysis-card {
+  background: rgba(246, 250, 247, 0.92) !important;
+  border-color: rgba(126, 160, 138, 0.46) !important;
+}
+
+html[data-theme="light"] .protocol-analysis-card strong {
+  color: var(--accent-cyan) !important;
+}
+
+html[data-theme="light"] .analysis-card h4 {
+  color: var(--text) !important;
+}
+
+@media (max-width: 1180px) {
+  .protocol-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .protocol-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

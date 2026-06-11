@@ -251,3 +251,54 @@ export function getControllerStoredCaptureDownloadUrl(
 ) {
   return `/api/controller/captures/${agentId}/${captureId}/download`;
 }
+
+export type PcapAnalysisCounter = {
+  key: string;
+  packets: number;
+  bytes: number;
+};
+
+export type PcapProtocolCounters = {
+  ethernet: number;
+  arp: number;
+  ipv4: number;
+  ipv6: number;
+  tcp: number;
+  udp: number;
+  icmp: number;
+  icmpv6: number;
+  other_l3: number;
+  other_l4: number;
+};
+
+export type PcapAnalysisResult = {
+  agent_id: string;
+  capture_id: string;
+  local_path: string;
+  datalink_name: string;
+  file_size_bytes: number;
+  packet_count: number;
+  byte_count: number;
+  analyzed_at: number;
+  first_packet_time: number;
+  last_packet_time: number;
+  duration_seconds: number;
+  protocols: PcapProtocolCounters;
+  top_source_ips: PcapAnalysisCounter[];
+  top_destination_ips: PcapAnalysisCounter[];
+  top_source_ports: PcapAnalysisCounter[];
+  top_destination_ports: PcapAnalysisCounter[];
+};
+
+export type PcapAnalysisResponse = {
+  analysis: PcapAnalysisResult;
+};
+
+export async function analyzeControllerStoredCapture(
+  agentId: string,
+  captureId: string,
+): Promise<PcapAnalysisResponse> {
+  return requestJson<PcapAnalysisResponse>(
+    `/api/controller/captures/${agentId}/${captureId}/analysis`,
+  );
+}

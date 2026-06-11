@@ -345,6 +345,28 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 200;
     });
 
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+)/analysis)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        PcapAnalysisResult analysis;
+        std::string route_error_message;
+
+        if (!controller_service_->analyze_controller_capture(
+                agent_id,
+                capture_id,
+                analysis,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_content(to_json(analysis), "application/json");
+        res.status = 200;
+    });
+
     server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();

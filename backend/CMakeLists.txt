@@ -71,6 +71,11 @@ add_library(controller_core STATIC
     controller/src/HttpAgentClient.cpp
     controller/src/ControllerService.cpp
     controller/src/ControllerJsonMapper.cpp
+    controller/src/PcapAnalyzer.cpp
+)
+
+target_link_libraries(controller_core
+    PUBLIC pcap
 )
 
 target_include_directories(controller_core
