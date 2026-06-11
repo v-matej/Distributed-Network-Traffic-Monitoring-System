@@ -8,6 +8,7 @@ import "@fontsource/share-tech-mono/400.css";
 
 import App from "./App";
 import "./index.css";
+import "./styles/packet-inspection.css";
 
 import { applyTheme, getStoredTheme } from "./lib/theme";
 

@@ -302,3 +302,78 @@ export async function analyzeControllerStoredCapture(
     `/api/controller/captures/${agentId}/${captureId}/analysis`,
   );
 }
+
+export type PcapPacketSummary = {
+  number: number;
+  timestamp: number;
+  timestamp_microseconds: number;
+  relative_time_seconds: number;
+  source: string;
+  destination: string;
+  protocol: string;
+  length: number;
+  captured_length: number;
+  info: string;
+};
+
+export type PcapPacketField = {
+  name: string;
+  value: string;
+};
+
+export type PcapPacketLayer = {
+  name: string;
+  fields: PcapPacketField[];
+};
+
+export type PcapHexLine = {
+  offset: number;
+  hex: string;
+  ascii: string;
+};
+
+export type PcapPacketDetail = {
+  summary: PcapPacketSummary;
+  layers: PcapPacketLayer[];
+  hex_lines: PcapHexLine[];
+};
+
+export type PcapPacketList = {
+  agent_id: string;
+  capture_id: string;
+  local_path: string;
+  datalink_name: string;
+  offset: number;
+  limit: number;
+  total_packets: number;
+  packets: PcapPacketSummary[];
+};
+
+export type PcapPacketListResponse = {
+  packet_list: PcapPacketList;
+};
+
+export type PcapPacketDetailResponse = {
+  packet: PcapPacketDetail;
+};
+
+export async function listControllerStoredCapturePackets(
+  agentId: string,
+  captureId: string,
+  offset = 0,
+  limit = 200,
+): Promise<PcapPacketListResponse> {
+  return requestJson<PcapPacketListResponse>(
+    `/api/controller/captures/${agentId}/${captureId}/packets?offset=${offset}&limit=${limit}`,
+  );
+}
+
+export async function getControllerStoredCapturePacket(
+  agentId: string,
+  captureId: string,
+  packetNumber: number,
+): Promise<PcapPacketDetailResponse> {
+  return requestJson<PcapPacketDetailResponse>(
+    `/api/controller/captures/${agentId}/${captureId}/packets/${packetNumber}`,
+  );
+}

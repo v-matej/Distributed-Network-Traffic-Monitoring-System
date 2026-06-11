@@ -17,6 +17,7 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CaptureDetailPage } from "./pages/CaptureDetailPage";
+import { PacketAnalysisPage } from "./pages/PacketAnalysisPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 const navItems = [
@@ -54,7 +55,7 @@ function App() {
 
             <div>
               <div className="brand-title">PKTCAPTURE</div>
-              <div className="brand-subtitle">Controller v0.4.1</div>
+              <div className="brand-subtitle">Controller v0.5.0</div>
             </div>
           </div>
 
@@ -100,18 +101,6 @@ function App() {
               <strong>Stable</strong>
             </div>
           </div>
-
-          {/* <div className="sidebar-footer">
-            <div>
-              <span>Build profile</span>
-              <strong>Presentation</strong>
-            </div>
-
-            <div>
-              <span>UI stack</span>
-              <strong>React · TS · Tailwind</strong>
-            </div>
-          </div> */}
         </aside>
 
         <main className="main">
@@ -123,7 +112,11 @@ function App() {
               </div>
 
               <h1>Packet Capture Control Console</h1>
-              <p>Manage agents, launch captures, inspect PCAP sessions, and monitor controller state.</p>
+
+              <p>
+                Manage agents, launch captures, inspect PCAP sessions, and
+                monitor controller state.
+              </p>
             </div>
 
             <div className="topbar-actions">
@@ -146,10 +139,17 @@ function App() {
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/agents/:agentId" element={<AgentDetailPage />} />
               <Route path="/captures" element={<CapturesPage />} />
+
               <Route
                 path="/captures/:agentId/:captureId"
                 element={<CaptureDetailPage />}
               />
+
+              <Route
+                path="/captures/:agentId/:captureId/packets"
+                element={<PacketAnalysisPage />}
+              />
+
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           </section>

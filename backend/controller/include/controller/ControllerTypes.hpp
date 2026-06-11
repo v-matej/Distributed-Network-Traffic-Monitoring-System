@@ -134,6 +134,58 @@ struct PcapAnalysisResult {
     std::vector<PcapAnalysisCounter> top_destination_ports;
 };
 
+struct PcapPacketSummary {
+    std::uint64_t number = 0;
+
+    std::time_t timestamp = 0;
+    int timestamp_microseconds = 0;
+    double relative_time_seconds = 0.0;
+
+    std::string source;
+    std::string destination;
+    std::string protocol;
+
+    std::uint32_t length = 0;
+    std::uint32_t captured_length = 0;
+
+    std::string info;
+};
+
+struct PcapPacketField {
+    std::string name;
+    std::string value;
+};
+
+struct PcapPacketLayer {
+    std::string name;
+    std::vector<PcapPacketField> fields;
+};
+
+struct PcapHexLine {
+    std::uint32_t offset = 0;
+    std::string hex;
+    std::string ascii;
+};
+
+struct PcapPacketDetail {
+    PcapPacketSummary summary;
+    std::vector<PcapPacketLayer> layers;
+    std::vector<PcapHexLine> hex_lines;
+};
+
+struct PcapPacketList {
+    std::string agent_id;
+    std::string capture_id;
+    std::string local_path;
+    std::string datalink_name;
+
+    std::size_t offset = 0;
+    std::size_t limit = 0;
+    std::uint64_t total_packets = 0;
+
+    std::vector<PcapPacketSummary> packets;
+};
+
 struct KnownAgentWithHealth {
     KnownAgent agent;
     RemoteHealthInfo health;

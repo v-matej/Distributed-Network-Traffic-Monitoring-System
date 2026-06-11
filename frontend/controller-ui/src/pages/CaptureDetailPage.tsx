@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
+
 import {
   analyzeControllerStoredCapture,
   fetchAgentCaptureToController,
@@ -225,10 +227,17 @@ export function CaptureDetailPage() {
             <>
               <a
                 className="primary-button"
-                href={getAgentCaptureDownloadUrl(
-                  agent.agent_id,
-                  capture.capture_id,
-                )}
+                href={
+                  storedCapture?.exists
+                    ? getControllerStoredCaptureDownloadUrl(
+                        agent.agent_id,
+                        capture.capture_id,
+                      )
+                    : getAgentCaptureDownloadUrl(
+                        agent.agent_id,
+                        capture.capture_id,
+                      )
+                }
                 download
               >
                 Download PCAP
@@ -246,7 +255,9 @@ export function CaptureDetailPage() {
 
               {storedCapture?.exists && (
                 <>
-                  <span className="status-badge status-good">Stored on controller</span>
+                  <span className="status-badge status-good">
+                    Stored on controller
+                  </span>
 
                   <button
                     className="secondary-button"
@@ -256,16 +267,12 @@ export function CaptureDetailPage() {
                     {isAnalyzing ? "Analyzing..." : "Analyze"}
                   </button>
 
-                  <a
-                    className="secondary-button"
-                    href={getControllerStoredCaptureDownloadUrl(
-                      agent.agent_id,
-                      capture.capture_id,
-                    )}
-                    download
+                  <Link
+                    className="primary-button"
+                    to={`/captures/${agent.agent_id}/${capture.capture_id}/packets`}
                   >
-                    Download stored
-                  </a>
+                    Packet view
+                  </Link>
                 </>
               )}
             </>
@@ -292,6 +299,7 @@ export function CaptureDetailPage() {
       </section>
 
       {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
+
       {successMessage && (
         <div className="alert alert-success">{successMessage}</div>
       )}
@@ -313,77 +321,88 @@ export function CaptureDetailPage() {
               </p>
             </div>
 
-            <span className={`status-badge ${captureStatusClass(capture.status)}`}>
+            <span
+              className={`status-badge ${captureStatusClass(capture.status)}`}
+            >
               {capture.status}
             </span>
           </section>
 
-          <section className="metric-grid capture-metric-grid">
-            <div className="metric-card">
-              <span className="metric-label">Packets</span>
-              <strong>{capture.result.packets_captured}</strong>
-              <p>Total packets captured.</p>
+          <section className="capture-summary-grid">
+            <div className="capture-summary-card">
+              <span>Status</span>
+              <strong>{capture.status}</strong>
+              <p>Current session state.</p>
             </div>
 
-            <div className="metric-card">
-              <span className="metric-label">Bytes</span>
-              <strong>{formatBytes(capture.result.bytes_captured)}</strong>
-              <p>Total captured payload size.</p>
+            <div className="capture-summary-card">
+              <span>Duration</span>
+              <strong>
+                {derivedStats.durationSeconds !== null
+                  ? formatDurationSeconds(derivedStats.durationSeconds)
+                  : "pending"}
+              </strong>
+              <p>Runtime based on result timestamps.</p>
             </div>
 
-            <div className="metric-card">
-              <span className="metric-label">Avg throughput</span>
-              <strong>{derivedStats.averageThroughput}</strong>
-              <p>Calculated after capture finalizes.</p>
+            <div className="capture-summary-card">
+              <span>Controller storage</span>
+              <strong>{storedCapture?.exists ? "stored" : "not stored"}</strong>
+              <p>
+                {storedCapture?.exists
+                  ? formatBytes(storedCapture.file_size_bytes)
+                  : "Fetch PCAP to enable inspection."}
+              </p>
             </div>
 
-            <div className="metric-card">
-              <span className="metric-label">Packet rate</span>
-              <strong>{derivedStats.packetRate}</strong>
-              <p>Average packets per second.</p>
+            <div className="capture-summary-card">
+              <span>Agent</span>
+              <strong>{agent.display_name || agent.agent_id}</strong>
+              <p>
+                {agent.host}:{agent.port}
+              </p>
             </div>
           </section>
 
           {analysis && (
-            <section className="page-card analysis-section">
-              <div className="section-heading">
-                <div>
-                  <h3>PCAP analysis</h3>
-                  <p>
-                    Controller-side analysis from stored PCAP file. Analyzed at{" "}
-                    {formatUnixTime(analysis.analyzed_at)}.
-                  </p>
-                </div>
-
-                <span className="status-badge status-good">analysis ready</span>
-              </div>
-
-              <section className="metric-grid capture-metric-grid">
-                <div className="metric-card">
-                  <span className="metric-label">Analyzed packets</span>
+            <CollapsiblePanel
+              title="PCAP analysis"
+              subtitle={`Controller-side aggregate analysis from ${
+                analysis.datalink_name || "PCAP"
+              } data.`}
+              badge={<span className="status-badge status-good">ready</span>}
+              defaultOpen
+            >
+              <section className="analysis-overview-grid">
+                <div className="capture-summary-card">
+                  <span>Analyzed packets</span>
                   <strong>{analysis.packet_count}</strong>
-                  <p>Datalink: {analysis.datalink_name || "unknown"}</p>
+                  <p>Total packets read from controller PCAP.</p>
                 </div>
 
-                <div className="metric-card">
-                  <span className="metric-label">Analyzed bytes</span>
+                <div className="capture-summary-card">
+                  <span>Analyzed bytes</span>
                   <strong>{formatBytes(analysis.byte_count)}</strong>
-                  <p>File size: {formatBytes(analysis.file_size_bytes)}</p>
+                  <p>Bytes reported by PCAP packet headers.</p>
                 </div>
 
-                <div className="metric-card">
-                  <span className="metric-label">PCAP duration</span>
-                  <strong>{formatDurationSeconds(Math.round(analysis.duration_seconds))}</strong>
+                <div className="capture-summary-card">
+                  <span>Datalink</span>
+                  <strong>{analysis.datalink_name || "unknown"}</strong>
+                  <p>Detected capture link-layer type.</p>
+                </div>
+
+                <div className="capture-summary-card">
+                  <span>PCAP duration</span>
+                  <strong>
+                    {formatDurationSeconds(
+                      Math.max(0, Math.round(analysis.duration_seconds)),
+                    )}
+                  </strong>
                   <p>
                     {formatUnixTime(analysis.first_packet_time)} →{" "}
                     {formatUnixTime(analysis.last_packet_time)}
                   </p>
-                </div>
-
-                <div className="metric-card">
-                  <span className="metric-label">Controller file</span>
-                  <strong>{analysis.datalink_name || "PCAP"}</strong>
-                  <p>Read from local controller storage.</p>
                 </div>
               </section>
 
@@ -421,277 +440,285 @@ export function CaptureDetailPage() {
                   counters={analysis.top_destination_ports}
                 />
               </section>
-            </section>
+            </CollapsiblePanel>
           )}
 
-          <section className="capture-detail-grid">
-            <div className="capture-detail-section">
-              <h4>Session</h4>
+          <CollapsiblePanel
+            title="Capture technical details"
+            subtitle="Session, agent, configuration, result, timeline, storage, and diagnostics."
+            defaultOpen={false}
+          >
+            <section className="capture-detail-grid">
+              <div className="capture-detail-section">
+                <h4>Session</h4>
 
-              <dl className="compact-detail-list">
-                <div>
-                  <dt>Status</dt>
-                  <dd>
-                    <span
-                      className={`status-badge ${captureStatusClass(
-                        capture.status,
-                      )}`}
-                    >
-                      {capture.status}
-                    </span>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Capture ID</dt>
-                  <dd>
-                    <code>{capture.capture_id}</code>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Stop requested</dt>
-                  <dd>{capture.stop_requested ? "Yes" : "No"}</dd>
-                </div>
-
-                <div>
-                  <dt>Duration</dt>
-                  <dd>
-                    {derivedStats.durationSeconds !== null
-                      ? formatDurationSeconds(derivedStats.durationSeconds)
-                      : "Available after completion"}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="capture-detail-section">
-              <h4>Agent</h4>
-
-              <dl className="compact-detail-list">
-                <div>
-                  <dt>Name</dt>
-                  <dd>{agent.display_name || "Unnamed agent"}</dd>
-                </div>
-
-                <div>
-                  <dt>Agent ID</dt>
-                  <dd>
-                    <code>{agent.agent_id}</code>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Endpoint</dt>
-                  <dd>
-                    {agent.host}:{agent.port}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatUnixTime(agent.created_at)}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="capture-detail-section">
-              <h4>Configuration</h4>
-
-              <dl className="compact-detail-list">
-                <div>
-                  <dt>Interface</dt>
-                  <dd>
-                    <code>{capture.config.interface_name || "—"}</code>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Output file</dt>
-                  <dd>
-                    <code>{capture.config.output_file || "—"}</code>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Filter</dt>
-                  <dd>
-                    <code>
-                      {capture.config.filter_expression || "No packet filter"}
-                    </code>
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Time limit</dt>
-                  <dd>
-                    {capture.config.duration_seconds > 0
-                      ? `${capture.config.duration_seconds} seconds`
-                      : "No time limit"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Packet limit</dt>
-                  <dd>
-                    {capture.config.packet_count > 0
-                      ? `${capture.config.packet_count} packets`
-                      : "No packet limit"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Live output</dt>
-                  <dd>{capture.config.live_output ? "Enabled" : "Disabled"}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="capture-detail-section">
-              <h4>Result</h4>
-
-              <dl className="compact-detail-list">
-                <div>
-                  <dt>Success</dt>
-                  <dd>{capture.result.success ? "Yes" : "No"}</dd>
-                </div>
-
-                <div>
-                  <dt>Packets</dt>
-                  <dd>{capture.result.packets_captured}</dd>
-                </div>
-
-                <div>
-                  <dt>Bytes</dt>
-                  <dd>{formatBytes(capture.result.bytes_captured)}</dd>
-                </div>
-
-                <div>
-                  <dt>Stop reason</dt>
-                  <dd>{capture.result.stop_reason || "—"}</dd>
-                </div>
-
-                <div>
-                  <dt>Avg packet size</dt>
-                  <dd>{derivedStats.averagePacketSize}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="capture-detail-section">
-              <h4>Timeline</h4>
-
-              <dl className="compact-detail-list">
-                <div>
-                  <dt>Session created</dt>
-                  <dd>{formatUnixTime(capture.created_at)}</dd>
-                </div>
-
-                <div>
-                  <dt>Session started</dt>
-                  <dd>{formatUnixTime(capture.started_at)}</dd>
-                </div>
-
-                <div>
-                  <dt>Session finished</dt>
-                  <dd>{formatUnixTime(capture.finished_at)}</dd>
-                </div>
-
-                <div>
-                  <dt>Result start</dt>
-                  <dd>{formatUnixTime(capture.result.start_time)}</dd>
-                </div>
-
-                <div>
-                  <dt>Result end</dt>
-                  <dd>{formatUnixTime(capture.result.end_time)}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="capture-detail-section">
-              <h4>Controller storage</h4>
-
-              {storedCapture?.exists ? (
                 <dl className="compact-detail-list">
                   <div>
                     <dt>Status</dt>
                     <dd>
-                      <span className="status-badge status-good">
-                        Stored on controller
+                      <span
+                        className={`status-badge ${captureStatusClass(
+                          capture.status,
+                        )}`}
+                      >
+                        {capture.status}
                       </span>
                     </dd>
                   </div>
 
                   <div>
-                    <dt>Local path</dt>
+                    <dt>Capture ID</dt>
                     <dd>
-                      <code>{storedCapture.local_path}</code>
+                      <code>{capture.capture_id}</code>
                     </dd>
                   </div>
 
                   <div>
-                    <dt>Stored size</dt>
-                    <dd>{formatBytes(storedCapture.file_size_bytes)}</dd>
+                    <dt>Stop requested</dt>
+                    <dd>{capture.stop_requested ? "Yes" : "No"}</dd>
                   </div>
 
                   <div>
-                    <dt>Fetched at</dt>
-                    <dd>{formatUnixTime(storedCapture.fetched_at)}</dd>
+                    <dt>Duration</dt>
+                    <dd>
+                      {derivedStats.durationSeconds !== null
+                        ? formatDurationSeconds(derivedStats.durationSeconds)
+                        : "Available after completion"}
+                    </dd>
                   </div>
                 </dl>
-              ) : (
-                <div className="diagnostic-box">
-                  This capture is not stored on the controller yet. Use{" "}
-                  <strong>Fetch to controller</strong> after the capture
-                  completes to prepare it for analysis.
-                </div>
-              )}
-            </div>
+              </div>
 
-            <div className="capture-detail-section">
-              <h4>Diagnostics</h4>
+              <div className="capture-detail-section">
+                <h4>Agent</h4>
 
-              {capture.result.error_message ? (
-                <div className="diagnostic-box diagnostic-error">
-                  {capture.result.error_message}
-                </div>
-              ) : (
-                <div className="diagnostic-box">
-                  No error message reported for this capture.
-                </div>
-              )}
+                <dl className="compact-detail-list">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{agent.display_name || "Unnamed agent"}</dd>
+                  </div>
 
-              {isActiveCapture(capture) && (
-                <div className="future-action-box">
-                  Live throughput needs backend progress counters. Current
-                  throughput is calculated from final capture result values.
-                </div>
-              )}
+                  <div>
+                    <dt>Agent ID</dt>
+                    <dd>
+                      <code>{agent.agent_id}</code>
+                    </dd>
+                  </div>
 
-              {!isActiveCapture(capture) && storedCapture?.exists && !analysis && (
-                <div className="future-action-box">
-                  Controller-local PCAP copy is ready. Click{" "}
-                  <strong>Analyze</strong> to calculate protocol counters, top
-                  IP addresses, and top ports.
-                </div>
-              )}
+                  <div>
+                    <dt>Endpoint</dt>
+                    <dd>
+                      {agent.host}:{agent.port}
+                    </dd>
+                  </div>
 
-              {!isActiveCapture(capture) && storedCapture?.exists && analysis && (
-                <div className="future-action-box">
-                  Analysis is available and was calculated from{" "}
-                  <code>{analysis.local_path}</code>.
-                </div>
-              )}
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{formatUnixTime(agent.created_at)}</dd>
+                  </div>
+                </dl>
+              </div>
 
-              {!isActiveCapture(capture) && !storedCapture?.exists && (
-                <div className="future-action-box">
-                  PCAP can be downloaded directly through the agent proxy, or
-                  fetched into controller storage for later analysis.
-                </div>
-              )}
-            </div>
-          </section>
+              <div className="capture-detail-section">
+                <h4>Configuration</h4>
+
+                <dl className="compact-detail-list">
+                  <div>
+                    <dt>Interface</dt>
+                    <dd>
+                      <code>{capture.config.interface_name || "—"}</code>
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Output file</dt>
+                    <dd>
+                      <code>{capture.config.output_file || "—"}</code>
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Filter</dt>
+                    <dd>
+                      <code>
+                        {capture.config.filter_expression || "No packet filter"}
+                      </code>
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Time limit</dt>
+                    <dd>
+                      {capture.config.duration_seconds > 0
+                        ? `${capture.config.duration_seconds} seconds`
+                        : "No time limit"}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Packet limit</dt>
+                    <dd>
+                      {capture.config.packet_count > 0
+                        ? `${capture.config.packet_count} packets`
+                        : "No packet limit"}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Live output</dt>
+                    <dd>
+                      {capture.config.live_output ? "Enabled" : "Disabled"}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="capture-detail-section">
+                <h4>Result</h4>
+
+                <dl className="compact-detail-list">
+                  <div>
+                    <dt>Success</dt>
+                    <dd>{capture.result.success ? "Yes" : "No"}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Packets</dt>
+                    <dd>{capture.result.packets_captured}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Bytes</dt>
+                    <dd>{formatBytes(capture.result.bytes_captured)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Stop reason</dt>
+                    <dd>{capture.result.stop_reason || "—"}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Avg packet size</dt>
+                    <dd>{derivedStats.averagePacketSize}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="capture-detail-section">
+                <h4>Timeline</h4>
+
+                <dl className="compact-detail-list">
+                  <div>
+                    <dt>Session created</dt>
+                    <dd>{formatUnixTime(capture.created_at)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Session started</dt>
+                    <dd>{formatUnixTime(capture.started_at)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Session finished</dt>
+                    <dd>{formatUnixTime(capture.finished_at)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Result start</dt>
+                    <dd>{formatUnixTime(capture.result.start_time)}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Result end</dt>
+                    <dd>{formatUnixTime(capture.result.end_time)}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="capture-detail-section">
+                <h4>Controller storage</h4>
+
+                {storedCapture?.exists ? (
+                  <dl className="compact-detail-list">
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        <span className="status-badge status-good">
+                          Stored on controller
+                        </span>
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Local path</dt>
+                      <dd>
+                        <code>{storedCapture.local_path}</code>
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Stored size</dt>
+                      <dd>{formatBytes(storedCapture.file_size_bytes)}</dd>
+                    </div>
+
+                    <div>
+                      <dt>Fetched at</dt>
+                      <dd>{formatUnixTime(storedCapture.fetched_at)}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <div className="diagnostic-box">
+                    This capture is not stored on the controller yet. Use{" "}
+                    <strong>Fetch to controller</strong> after the capture
+                    completes to prepare it for analysis and packet inspection.
+                  </div>
+                )}
+              </div>
+
+              <div className="capture-detail-section">
+                <h4>Diagnostics</h4>
+
+                {capture.result.error_message ? (
+                  <div className="diagnostic-box diagnostic-error">
+                    {capture.result.error_message}
+                  </div>
+                ) : (
+                  <div className="diagnostic-box">
+                    No error message reported for this capture.
+                  </div>
+                )}
+
+                {isActiveCapture(capture) && (
+                  <div className="future-action-box">
+                    Live throughput needs backend progress counters. Current
+                    throughput is calculated from final capture result values.
+                  </div>
+                )}
+
+                {!isActiveCapture(capture) && storedCapture?.exists && !analysis && (
+                  <div className="future-action-box">
+                    Controller-local PCAP copy is ready. Use{" "}
+                    <strong>Analyze</strong> for aggregate statistics or{" "}
+                    <strong>Packet view</strong> for per-packet inspection.
+                  </div>
+                )}
+
+                {!isActiveCapture(capture) && storedCapture?.exists && analysis && (
+                  <div className="future-action-box">
+                    Analysis is available and was calculated from{" "}
+                    <code>{analysis.local_path}</code>.
+                  </div>
+                )}
+
+                {!isActiveCapture(capture) && !storedCapture?.exists && (
+                  <div className="future-action-box">
+                    PCAP can be downloaded directly through the agent proxy, or
+                    fetched into controller storage for later analysis.
+                  </div>
+                )}
+              </div>
+            </section>
+          </CollapsiblePanel>
         </>
       )}
     </div>

@@ -72,6 +72,8 @@ add_library(controller_core STATIC
     controller/src/ControllerService.cpp
     controller/src/ControllerJsonMapper.cpp
     controller/src/PcapAnalyzer.cpp
+    controller/src/PcapPacketInspector.cpp
+    controller/src/ControllerPacketJsonMapper.cpp
 )
 
 target_link_libraries(controller_core

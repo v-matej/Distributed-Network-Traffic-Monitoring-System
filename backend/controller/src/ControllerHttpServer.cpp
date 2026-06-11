@@ -1,9 +1,16 @@
 #include "controller/ControllerHttpServer.hpp"
 
 #include "controller/ControllerJsonMapper.hpp"
+#include "controller/ControllerPacketJsonMapper.hpp"
+#include "controller/PcapPacketInspector.hpp"
 
+#include <algorithm>
+#include <cstdlib>
+#include <cstdint>
 #include <iostream>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace controller {
 
@@ -13,6 +20,7 @@ int map_info_proxy_status(int response_status) {
     if (response_status == 404) {
         return 404;
     }
+
     return 502;
 }
 
@@ -22,9 +30,32 @@ int map_capture_proxy_status(int response_status) {
         case 404:
         case 409:
             return response_status;
+
         default:
             return 502;
     }
+}
+
+std::size_t get_size_query_param(
+    const httplib::Request& req,
+    const std::string& name,
+    std::size_t default_value,
+    std::size_t max_value
+) {
+    if (!req.has_param(name)) {
+        return default_value;
+    }
+
+    const auto value = req.get_param_value(name);
+
+    char* end_pointer = nullptr;
+    const auto parsed = std::strtoull(value.c_str(), &end_pointer, 10);
+
+    if (end_pointer == value.c_str()) {
+        return default_value;
+    }
+
+    return std::min<std::size_t>(static_cast<std::size_t>(parsed), max_value);
 }
 
 }  // namespace
@@ -44,6 +75,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
     server_.Get("/api/agents", [this](const httplib::Request&, httplib::Response& res) {
         const auto agents = controller_service_->list_agents();
+
         res.set_content(to_json(agents), "application/json");
         res.status = 200;
     });
@@ -57,6 +89,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
         AddAgentRequest request;
         std::string parse_error;
+
         if (!parse_add_agent_request_json(req.body, request, parse_error)) {
             res.set_content(make_error_json(parse_error), "application/json");
             res.status = 400;
@@ -65,6 +98,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
         KnownAgent added_agent;
         std::string add_error;
+
         if (!controller_service_->add_agent(request, added_agent, add_error)) {
             res.set_content(make_error_json(add_error), "application/json");
             res.status = 400;
@@ -78,6 +112,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
     server_.Delete("/api/agents", [this](const httplib::Request&, httplib::Response& res) {
         std::size_t cleared_count = 0;
         std::string clear_error;
+
         if (!controller_service_->clear_agents(cleared_count, clear_error)) {
             res.set_content(make_error_json(clear_error), "application/json");
             res.status = 500;
@@ -90,6 +125,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
             + "    \"message\": \"Cleared all registered agents from controller storage\",\n"
             + "    \"agents_cleared\": " + std::to_string(cleared_count) + "\n"
             + "}";
+
         res.set_content(message, "application/json");
         res.status = 200;
     });
@@ -99,6 +135,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
         KnownAgent removed_agent;
         std::string remove_error;
+
         if (!controller_service_->remove_agent(agent_id, removed_agent, remove_error)) {
             res.set_content(make_error_json(remove_error), "application/json");
             res.status = 404;
@@ -115,7 +152,13 @@ bool ControllerHttpServer::start(std::string& error_message) {
         KnownAgentWithHealth result;
         std::string route_error_message;
         int response_status = 0;
-        if (!controller_service_->get_agent_health(agent_id, result, route_error_message, response_status)) {
+
+        if (!controller_service_->get_agent_health(
+                agent_id,
+                result,
+                route_error_message,
+                response_status
+            )) {
             res.set_content(make_error_json(route_error_message), "application/json");
             res.status = map_info_proxy_status(response_status);
             return;
@@ -132,6 +175,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
         std::vector<RemoteInterfaceInfo> interfaces;
         std::string route_error_message;
         int response_status = 0;
+
         if (!controller_service_->get_agent_interfaces(
                 agent_id,
                 agent,
@@ -157,6 +201,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
         RemoteCaptureRequest request;
         std::string parse_error;
+
         if (!parse_remote_capture_request_json(req.body, request, parse_error)) {
             res.set_content(make_error_json(parse_error), "application/json");
             res.status = 400;
@@ -164,10 +209,12 @@ bool ControllerHttpServer::start(std::string& error_message) {
         }
 
         const auto agent_id = req.matches[1].str();
+
         KnownAgent agent;
         RemoteCaptureSessionInfo capture;
         std::string route_error_message;
         int response_status = 0;
+
         if (!controller_service_->start_agent_capture(
                 agent_id,
                 request,
@@ -192,6 +239,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
         std::vector<RemoteCaptureSessionInfo> captures;
         std::string route_error_message;
         int response_status = 0;
+
         if (!controller_service_->list_agent_captures(
                 agent_id,
                 agent,
@@ -216,6 +264,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
         RemoteCaptureSessionInfo capture;
         std::string route_error_message;
         int response_status = 0;
+
         if (!controller_service_->stop_agent_capture(
                 agent_id,
                 capture_id,
@@ -261,11 +310,14 @@ bool ControllerHttpServer::start(std::string& error_message) {
             "Content-Disposition",
             "attachment; filename=\"" + capture_id + ".pcap\""
         );
-        res.set_content(content, content_type.empty() ? "application/vnd.tcpdump.pcap" : content_type);
+        res.set_content(
+            content,
+            content_type.empty() ? "application/vnd.tcpdump.pcap" : content_type
+        );
         res.status = 200;
     });
 
-        server_.Post(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+)/fetch)", [this](const httplib::Request& req, httplib::Response& res) {
+    server_.Post(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+)/fetch)", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();
 
@@ -291,29 +343,8 @@ bool ControllerHttpServer::start(std::string& error_message) {
 
     server_.Get("/api/controller/captures", [this](const httplib::Request&, httplib::Response& res) {
         const auto stored_captures = controller_service_->list_controller_captures();
+
         res.set_content(to_json(stored_captures), "application/json");
-        res.status = 200;
-    });
-
-    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
-        const auto agent_id = req.matches[1].str();
-        const auto capture_id = req.matches[2].str();
-
-        ControllerStoredCaptureInfo stored_capture;
-        std::string route_error_message;
-
-        if (!controller_service_->get_controller_capture(
-                agent_id,
-                capture_id,
-                stored_capture,
-                route_error_message
-            )) {
-            res.set_content(make_error_json(route_error_message), "application/json");
-            res.status = 404;
-            return;
-        }
-
-        res.set_content(to_json(stored_capture), "application/json");
         res.status = 200;
     });
 
@@ -367,6 +398,106 @@ bool ControllerHttpServer::start(std::string& error_message) {
         res.status = 200;
     });
 
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+)/packets)", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        const auto offset = get_size_query_param(req, "offset", 0, 1000000);
+        const auto limit = get_size_query_param(req, "limit", 200, 500);
+
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+
+        if (!controller_service_->get_controller_capture(
+                agent_id,
+                capture_id,
+                stored_capture,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        PcapPacketList packet_list;
+
+        if (!PcapPacketInspector::list_packets(
+                stored_capture,
+                offset,
+                limit,
+                packet_list,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 500;
+            return;
+        }
+
+        res.set_content(to_packet_list_json(packet_list), "application/json");
+        res.status = 200;
+    });
+
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+)/packets/([0-9]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        const auto packet_number = static_cast<std::uint64_t>(
+            std::strtoull(req.matches[3].str().c_str(), nullptr, 10)
+        );
+
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+
+        if (!controller_service_->get_controller_capture(
+                agent_id,
+                capture_id,
+                stored_capture,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        PcapPacketDetail packet_detail;
+
+        if (!PcapPacketInspector::get_packet_detail(
+                stored_capture,
+                packet_number,
+                packet_detail,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_content(to_packet_detail_json(packet_detail), "application/json");
+        res.status = 200;
+    });
+
+    server_.Get(R"(/api/controller/captures/([A-Za-z0-9_-]+)/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto agent_id = req.matches[1].str();
+        const auto capture_id = req.matches[2].str();
+
+        ControllerStoredCaptureInfo stored_capture;
+        std::string route_error_message;
+
+        if (!controller_service_->get_controller_capture(
+                agent_id,
+                capture_id,
+                stored_capture,
+                route_error_message
+            )) {
+            res.set_content(make_error_json(route_error_message), "application/json");
+            res.status = 404;
+            return;
+        }
+
+        res.set_content(to_json(stored_capture), "application/json");
+        res.status = 200;
+    });
+
     server_.Get(R"(/api/agents/([A-Za-z0-9_-]+)/captures/([A-Za-z0-9\-_]+))", [this](const httplib::Request& req, httplib::Response& res) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();
@@ -375,6 +506,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
         RemoteCaptureSessionInfo capture;
         std::string route_error_message;
         int response_status = 0;
+
         if (!controller_service_->get_agent_capture(
                 agent_id,
                 capture_id,
@@ -415,6 +547,7 @@ bool ControllerHttpServer::start(std::string& error_message) {
               << config_.bind_address << ":" << config_.port << '\n';
 
     const bool listen_ok = server_.listen(config_.bind_address.c_str(), config_.port);
+
     if (!listen_ok) {
         error_message = "Failed to bind HTTP server to " +
                         config_.bind_address + ":" + std::to_string(config_.port);

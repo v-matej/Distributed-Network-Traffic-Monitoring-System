@@ -436,13 +436,3 @@ function makeOfflineStatus(error: unknown): AgentStatusState {
     lastCheckedAt: new Date(),
   };
 }
-
-function getFailedAgentFromResult(error: unknown, agents: KnownAgent[]) {
-  const message = error instanceof Error ? error.message : "";
-
-  return (
-    agents.find((agent) => message.includes(agent.agent_id)) ??
-    agents.find((agent) => message.includes(agent.host)) ??
-    null
-  );
-}
