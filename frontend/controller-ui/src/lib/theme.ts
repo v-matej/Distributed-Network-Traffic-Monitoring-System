@@ -2,6 +2,16 @@ export type UiTheme = "dark" | "light";
 
 const THEME_STORAGE_KEY = "dntm-ui-theme";
 
+function getSystemTheme(): UiTheme {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+}
+
 export function getStoredTheme(): UiTheme {
   if (typeof window === "undefined") {
     return "dark";
@@ -13,7 +23,7 @@ export function getStoredTheme(): UiTheme {
     return storedTheme;
   }
 
-  return "dark";
+  return getSystemTheme();
 }
 
 export function applyTheme(theme: UiTheme) {
