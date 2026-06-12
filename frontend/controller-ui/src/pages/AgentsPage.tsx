@@ -29,6 +29,16 @@ type AgentStatusState = {
   lastCheckedAt: Date | null;
 };
 
+type ConfirmDialogState =
+  | {
+      kind: "delete-agent";
+      agent: KnownAgent;
+    }
+  | {
+      kind: "clear-all";
+    }
+  | null;
+
 const initialFormState: FormState = {
   display_name: "",
   host: "127.0.0.1",
@@ -51,6 +61,8 @@ export function AgentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingStatuses, setIsRefreshingStatuses] = useState(false);
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -186,52 +198,59 @@ export function AgentsPage() {
     }
   }
 
-  async function handleDelete(agentId: string) {
-    const shouldDelete = window.confirm(`Delete agent ${agentId}?`);
-    if (!shouldDelete) {
-      return;
-    }
-
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    try {
-      await deleteAgent(agentId);
-      setAgents((current) => current.filter((agent) => agent.agent_id !== agentId));
-      setAgentStatuses((current) => {
-        const next = { ...current };
-        delete next[agentId];
-        return next;
-      });
-      setSuccessMessage(`Agent ${agentId} deleted.`);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to delete agent",
-      );
-    }
+  function handleDelete(agent: KnownAgent) {
+    setConfirmDialog({
+      kind: "delete-agent",
+      agent,
+    });
   }
 
-  async function handleClearAll() {
-    const shouldClear = window.confirm(
-      "Clear all known agents? This also clears persisted controller storage.",
-    );
+  function handleClearAll() {
+    setConfirmDialog({
+      kind: "clear-all",
+    });
+  }
 
-    if (!shouldClear) {
+  async function handleConfirmDialogAction() {
+    if (!confirmDialog) {
       return;
     }
 
+    setIsConfirmingAction(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
     try {
-      await clearAgents();
-      setAgents([]);
-      setAgentStatuses({});
-      setSuccessMessage("All known agents cleared.");
+      if (confirmDialog.kind === "delete-agent") {
+        const agentId = confirmDialog.agent.agent_id;
+
+        await deleteAgent(agentId);
+
+        setAgents((current) =>
+          current.filter((agent) => agent.agent_id !== agentId),
+        );
+        setAgentStatuses((current) => {
+          const next = { ...current };
+          delete next[agentId];
+          return next;
+        });
+
+        setSuccessMessage(`Agent ${agentId} deleted.`);
+      } else {
+        await clearAgents();
+
+        setAgents([]);
+        setAgentStatuses({});
+        setSuccessMessage("All known agents cleared.");
+      }
+
+      setConfirmDialog(null);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to clear agents",
+        error instanceof Error ? error.message : "Failed to complete action",
       );
+    } finally {
+      setIsConfirmingAction(false);
     }
   }
 
@@ -325,7 +344,7 @@ export function AgentsPage() {
 
           <button
             className="danger-button"
-            onClick={() => void handleClearAll()}
+            onClick={handleClearAll}
             disabled={agents.length === 0}
           >
             Clear all
@@ -400,7 +419,7 @@ export function AgentsPage() {
 
                         <button
                           className="small-button danger-text"
-                          onClick={() => void handleDelete(agent.agent_id)}
+                          onClick={() => handleDelete(agent)}
                         >
                           Delete
                         </button>
@@ -413,6 +432,118 @@ export function AgentsPage() {
           </div>
         )}
       </section>
+
+      {confirmDialog && (
+        <ConfirmDialog
+          dialog={confirmDialog}
+          isConfirming={isConfirmingAction}
+          onCancel={() => setConfirmDialog(null)}
+          onConfirm={() => void handleConfirmDialogAction()}
+        />
+      )}
+    </div>
+  );
+}
+
+type ConfirmDialogProps = {
+  dialog: ConfirmDialogState;
+  isConfirming: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+};
+
+function ConfirmDialog({
+  dialog,
+  isConfirming,
+  onCancel,
+  onConfirm,
+}: ConfirmDialogProps) {
+  if (!dialog) {
+    return null;
+  }
+
+  const isDeleteAgent = dialog.kind === "delete-agent";
+  const agent = isDeleteAgent ? dialog.agent : null;
+
+  const title = isDeleteAgent ? "Delete agent" : "Clear all agents";
+  const confirmLabel = isDeleteAgent ? "Delete agent" : "Clear all";
+
+  const description = isDeleteAgent
+    ? "This removes the agent from the controller registry and deletes its stored controller-side captures."
+    : "This removes every registered agent and clears persisted controller-side capture storage.";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="agent-confirm-title"
+    >
+      <div className="w-full max-w-[520px] border border-console-red/45 bg-console-panel p-5 shadow-console">
+        <div className="mb-4 border-b border-console-border pb-4">
+          <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-console-red">
+            Destructive action
+          </div>
+
+          <h3
+            id="agent-confirm-title"
+            className="mb-0 mt-2 text-[22px] font-semibold uppercase tracking-[0.06em] text-console-text"
+          >
+            {title}
+          </h3>
+
+          <p className="mt-2 text-sm text-console-muted">{description}</p>
+        </div>
+
+        {agent && (
+          <dl className="detail-list mb-4">
+            <div>
+              <dt>Agent ID</dt>
+              <dd>
+                <code>{agent.agent_id}</code>
+              </dd>
+            </div>
+
+            <div>
+              <dt>Name</dt>
+              <dd>{agent.display_name || "Unnamed agent"}</dd>
+            </div>
+
+            <div>
+              <dt>Endpoint</dt>
+              <dd>
+                {agent.host}:{agent.port}
+              </dd>
+            </div>
+          </dl>
+        )}
+
+        {!agent && (
+          <div className="mb-4 border border-console-red/30 bg-console-red/10 p-3 font-mono text-[12px] uppercase tracking-[0.06em] text-console-red">
+            This action affects all known agents.
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onCancel}
+            disabled={isConfirming}
+          >
+            Cancel
+          </button>
+
+          <button
+            className="danger-button"
+            type="button"
+            onClick={onConfirm}
+            disabled={isConfirming}
+          >
+            {isConfirming ? "Working..." : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

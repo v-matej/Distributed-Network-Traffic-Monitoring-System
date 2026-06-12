@@ -27,6 +27,7 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { CapturesPage } from "./pages/CapturesPage";
 import { CaptureDetailPage } from "./pages/CaptureDetailPage";
+import { PacketAnalysisPage } from "./pages/PacketAnalysisPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { getStoredTheme, setStoredTheme, type UiTheme } from "./lib/theme";
 
@@ -63,6 +64,10 @@ const PAGE_TITLES: Record<string, string> = {
 function getPageTitle(pathname: string) {
   if (pathname.startsWith("/agents/")) {
     return "Agent Details";
+  }
+
+  if (pathname.includes("/packets")) {
+    return "Packet Inspection";
   }
 
   if (pathname.startsWith("/captures/")) {
@@ -190,6 +195,10 @@ function AppLayout() {
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/agents/:agentId" element={<AgentDetailPage />} />
             <Route path="/captures" element={<CapturesPage />} />
+            <Route
+              path="/captures/:agentId/:captureId/packets"
+              element={<PacketAnalysisPage />}
+            />
             <Route
               path="/captures/:agentId/:captureId"
               element={<CaptureDetailPage />}

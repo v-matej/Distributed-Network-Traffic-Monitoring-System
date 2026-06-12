@@ -51,6 +51,11 @@ type DashboardCaptureRow = {
   capture: RemoteCaptureSessionInfo;
 };
 
+type ActivityLine = {
+  timestamp: number;
+  text: string;
+};
+
 export function DashboardPage() {
   const [agents, setAgents] = useState<KnownAgent[]>([]);
   const [agentHealth, setAgentHealth] = useState<DashboardAgentHealth[]>([]);
@@ -80,6 +85,10 @@ export function DashboardPage() {
     isFailedCapture(row.capture),
   );
 
+  const knownPacketCaptures = captures.filter(
+    (row) => row.capture.result.packets_captured > 0,
+  );
+
   const totalPackets = captures.reduce(
     (sum, row) => sum + row.capture.result.packets_captured,
     0,
@@ -92,23 +101,43 @@ export function DashboardPage() {
 
   const recentCaptures = useMemo(() => {
     return [...captures]
-      .sort((left, right) => right.capture.created_at - left.capture.created_at)
+      .sort(
+        (left, right) =>
+          getCaptureEventTimestamp(right.capture) -
+          getCaptureEventTimestamp(left.capture),
+      )
       .slice(0, 6);
   }, [captures]);
 
-  const activityLines = useMemo(() => {
+  const activityLines = useMemo<ActivityLine[]>(() => {
     if (recentCaptures.length === 0) {
       return [
-        "controller: waiting for capture sessions",
-        "agent registry: ready",
-        "pcap storage: download proxy online",
+        {
+          timestamp: 0,
+          text: "controller: waiting for capture sessions",
+        },
+        {
+          timestamp: 0,
+          text: "agent registry: ready",
+        },
+        {
+          timestamp: 0,
+          text: "pcap storage: ready for controller-side analysis",
+        },
       ];
     }
 
     return recentCaptures.slice(0, 5).map((row) => {
       const agentName = getAgentDisplayName(row.agent);
-      const iface = row.capture.config.interface_name || "unknown-iface";
-      return `${row.capture.status.toUpperCase()} ${row.capture.capture_id} on ${agentName}/${iface}`;
+      const captureLabel = getCaptureDisplayStatus(row.capture);
+      const target = getCaptureTargetLabel(row.capture);
+      const size = formatBytes(row.capture.result.bytes_captured);
+      const timestamp = getCaptureEventTimestamp(row.capture);
+
+      return {
+        timestamp,
+        text: `${captureLabel} ${row.capture.capture_id} · ${agentName} · ${target} · ${size}`,
+      };
     });
   }, [recentCaptures]);
 
@@ -166,7 +195,9 @@ export function DashboardPage() {
       );
 
       captureRows.sort(
-        (left, right) => right.capture.created_at - left.capture.created_at,
+        (left, right) =>
+          getCaptureEventTimestamp(right.capture) -
+          getCaptureEventTimestamp(left.capture),
       );
 
       setAgents(agentList);
@@ -188,6 +219,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     void loadDashboard();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -213,8 +245,8 @@ export function DashboardPage() {
           <h2>Network capture operations</h2>
 
           <p>
-            Real-time control plane for registered agents, remote captures, PCAP download,
-            and session inspection.
+            Real-time control plane for registered agents, remote captures, PCAP
+            download, and session inspection.
           </p>
 
           <div className="console-hero-meta">
@@ -280,9 +312,17 @@ export function DashboardPage() {
 
             <DashboardMetric
               icon={<IconBinaryTree size={18} />}
-              label="Packets"
-              value={totalPackets.toLocaleString()}
-              description="Captured across completed sessions"
+              label="Known packets"
+              value={
+                knownPacketCaptures.length > 0
+                  ? totalPackets.toLocaleString()
+                  : "—"
+              }
+              description={
+                knownPacketCaptures.length > 0
+                  ? "Captured across sessions with metadata"
+                  : "Packet count requires capture metadata or analysis"
+              }
               accent="amber"
             />
 
@@ -290,7 +330,7 @@ export function DashboardPage() {
               icon={<IconDownload size={18} />}
               label="Capture data"
               value={formatBytes(totalBytes)}
-              description={`${completedCaptures.length} completed sessions`}
+              description={`${completedCaptures.length} completed or stored sessions`}
               accent="purple"
             />
           </section>
@@ -356,7 +396,7 @@ export function DashboardPage() {
               <div className="panel-title-row">
                 <div>
                   <h3>Controller activity</h3>
-                  <p>Recent control-plane events derived from capture history.</p>
+                  <p>Recent capture events ordered by their capture timestamp.</p>
                 </div>
 
                 <IconTerminal2 className="panel-icon" size={20} />
@@ -364,9 +404,9 @@ export function DashboardPage() {
 
               <div className="terminal-feed">
                 {activityLines.map((line, index) => (
-                  <div key={`${line}-${index}`} className="terminal-line">
-                    <span>{new Date().toLocaleTimeString()}</span>
-                    <code>{line}</code>
+                  <div key={`${line.text}-${index}`} className="terminal-line">
+                    <span>{formatActivityTimestamp(line.timestamp)}</span>
+                    <code>{line.text}</code>
                   </div>
                 ))}
               </div>
@@ -399,7 +439,7 @@ export function DashboardPage() {
             <div className="panel-title-row">
               <div>
                 <h3>Recent captures</h3>
-                <p>Latest capture sessions reported by known agents.</p>
+                <p>Latest capture sessions known by the controller.</p>
               </div>
 
               <Link className="small-button" to="/captures">
@@ -421,10 +461,10 @@ export function DashboardPage() {
                       <th>Agent</th>
                       <th>Capture ID</th>
                       <th>Status</th>
-                      <th>Interface</th>
+                      <th>Target</th>
                       <th>Packets</th>
                       <th>Bytes</th>
-                      <th>Created</th>
+                      <th>Event time</th>
                       <th />
                     </tr>
                   </thead>
@@ -436,6 +476,7 @@ export function DashboardPage() {
                           <div className="table-main-text">
                             {getAgentDisplayName(row.agent)}
                           </div>
+
                           <div className="table-sub-text">
                             {row.agent.host}:{row.agent.port}
                           </div>
@@ -451,17 +492,23 @@ export function DashboardPage() {
                               row.capture.status,
                             )}`}
                           >
-                            {row.capture.status}
+                            {getCaptureDisplayStatus(row.capture)}
                           </span>
                         </td>
 
                         <td>
-                          <code>{row.capture.config.interface_name || "—"}</code>
+                          <code>{getCaptureTargetLabel(row.capture)}</code>
                         </td>
 
-                        <td>{row.capture.result.packets_captured}</td>
-                        <td>{formatBytes(row.capture.result.bytes_captured)}</td>
-                        <td>{formatUnixTime(row.capture.created_at)}</td>
+                        <td>{formatPacketCount(row.capture)}</td>
+
+                        <td>
+                          {formatBytes(row.capture.result.bytes_captured)}
+                        </td>
+
+                        <td>
+                          {formatUnixTime(getCaptureEventTimestamp(row.capture))}
+                        </td>
 
                         <td className="table-actions">
                           <Link
@@ -510,4 +557,75 @@ function DashboardMetric({
       <p>{description}</p>
     </div>
   );
+}
+
+function getCaptureEventTimestamp(capture: RemoteCaptureSessionInfo) {
+  if (capture.finished_at > 0) {
+    return capture.finished_at;
+  }
+
+  if (capture.result.end_time > 0) {
+    return capture.result.end_time;
+  }
+
+  if (capture.result.start_time > 0) {
+    return capture.result.start_time;
+  }
+
+  if (capture.started_at > 0) {
+    return capture.started_at;
+  }
+
+  return capture.created_at;
+}
+
+function isControllerStorageFallback(capture: RemoteCaptureSessionInfo) {
+  return (
+    capture.result.stop_reason === "controller_storage_fallback" ||
+    capture.result.stop_reason === "stored_on_controller" ||
+    capture.config.interface_name === "stored-pcap"
+  );
+}
+
+function getCaptureDisplayStatus(capture: RemoteCaptureSessionInfo) {
+  if (isControllerStorageFallback(capture)) {
+    return "STORED";
+  }
+
+  return capture.status.toUpperCase();
+}
+
+function getCaptureTargetLabel(capture: RemoteCaptureSessionInfo) {
+  if (
+    capture.config.interface_name &&
+    capture.config.interface_name !== "stored-pcap"
+  ) {
+    return capture.config.interface_name;
+  }
+
+  if (isControllerStorageFallback(capture)) {
+    return "stored PCAP";
+  }
+
+  return "unknown target";
+}
+
+function formatPacketCount(capture: RemoteCaptureSessionInfo) {
+  if (capture.result.packets_captured > 0) {
+    return capture.result.packets_captured.toLocaleString();
+  }
+
+  if (isControllerStorageFallback(capture)) {
+    return "—";
+  }
+
+  return "0";
+}
+
+function formatActivityTimestamp(timestamp: number) {
+  if (timestamp <= 0) {
+    return "—";
+  }
+
+  return new Date(timestamp * 1000).toLocaleTimeString();
 }
