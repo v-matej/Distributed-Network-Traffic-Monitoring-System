@@ -25,10 +25,12 @@ import { statusClass } from "../lib/agentUtils";
 import { formatBytes, formatDurationSeconds, formatUnixTime } from "../lib/format";
 
 import {
+  getControllerStoredCaptureDownloadUrl,
   getAgent,
   getAgentHealth,
   getAgentInterfaces,
   listAgentCaptures,
+  listControllerStoredCaptures,
   startAgentCapture,
   stopAgentCapture,
 } from "../lib/api";
@@ -36,6 +38,7 @@ import {
 import type {
   AgentCapturesResponse,
   AgentInterfacesResponse,
+  ControllerStoredCaptureInfo,
   KnownAgent,
   KnownAgentWithHealth,
   RemoteCaptureSessionInfo,
@@ -133,6 +136,9 @@ export function AgentDetailPage() {
     null,
   );
   const [captures, setCaptures] = useState<AgentCapturesResponse | null>(null);
+  const [storedCaptures, setStoredCaptures] = useState<
+    ControllerStoredCaptureInfo[]
+  >([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
@@ -140,6 +146,18 @@ export function AgentDetailPage() {
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [healthErrorMessage, setHealthErrorMessage] = useState<string | null>(
+    null,
+  );
+  const [interfacesErrorMessage, setInterfacesErrorMessage] = useState<
+    string | null
+  >(null);
+  const [capturesErrorMessage, setCapturesErrorMessage] = useState<
+    string | null
+  >(null);
+  const [storedCapturesErrorMessage, setStoredCapturesErrorMessage] = useState<
+    string | null
+  >(null);
   const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [lastHealthCheckAt, setLastHealthCheckAt] = useState<Date | null>(null);
 
@@ -196,6 +214,14 @@ export function AgentDetailPage() {
   const hasActiveCaptures = activeCaptures.length > 0;
 
   const totalCaptures = captures?.captures.length ?? 0;
+  const remoteCaptureIds = new Set(
+    captures?.captures.map((capture) => capture.capture_id) ?? [],
+  );
+  const storedOnlyCaptureCount = storedCaptures.filter(
+    (capture) => !remoteCaptureIds.has(capture.capture_id),
+  ).length;
+  const knownCaptureCount = totalCaptures + storedOnlyCaptureCount;
+  const storedCaptureCount = storedCaptures.length;
 
   const completedCaptures =
     captures?.captures.filter((capture) => {
@@ -214,7 +240,39 @@ export function AgentDetailPage() {
     ? `${agent.host}:${agent.port}`
     : "Loading agent endpoint...";
 
-  const healthStatus = health?.health.status ?? "unknown";
+  const healthStatus = health
+    ? health.health.status
+    : healthErrorMessage
+      ? "unavailable"
+      : "unknown";
+
+  async function loadStoredCapturesForAgent(
+    options: { silent?: boolean } = {},
+  ) {
+    if (!agentId) {
+      return;
+    }
+
+    if (!options.silent) {
+      setStoredCapturesErrorMessage(null);
+    }
+
+    try {
+      const result = await listControllerStoredCaptures();
+      setStoredCaptures(
+        result.filter((storedCapture) => storedCapture.agent_id === agentId),
+      );
+      setStoredCapturesErrorMessage(null);
+    } catch (error) {
+      setStoredCaptures([]);
+
+      if (!options.silent) {
+        setStoredCapturesErrorMessage(
+          getErrorMessage(error, "Stored captures unavailable"),
+        );
+      }
+    }
+  }
 
   async function loadAgentDetail() {
     if (!agentId) {
@@ -225,32 +283,99 @@ export function AgentDetailPage() {
 
     setIsLoading(true);
     setErrorMessage(null);
+    setHealthErrorMessage(null);
+    setInterfacesErrorMessage(null);
+    setCapturesErrorMessage(null);
+    setStoredCapturesErrorMessage(null);
 
-    try {
-      const [agentResult, healthResult, interfacesResult, capturesResult] =
-        await Promise.all([
-          getAgent(agentId),
-          getAgentHealth(agentId),
-          getAgentInterfaces(agentId),
-          listAgentCaptures(agentId),
-        ]);
+    const [
+      agentResult,
+      healthResult,
+      interfacesResult,
+      capturesResult,
+      storedCapturesResult,
+    ] = await Promise.allSettled([
+      getAgent(agentId),
+      getAgentHealth(agentId),
+      getAgentInterfaces(agentId),
+      listAgentCaptures(agentId),
+      listControllerStoredCaptures(),
+    ]);
 
-      setAgent(agentResult);
-      setHealth(healthResult);
-      setLastHealthCheckAt(new Date());
-      setInterfaces(interfacesResult);
-      setCaptures(capturesResult);
-
-      if (!selectedInterface && interfacesResult.interfaces.length > 0) {
-        setSelectedInterface(interfacesResult.interfaces[0].name);
-      }
-    } catch (error) {
+    if (agentResult.status === "fulfilled") {
+      setAgent(agentResult.value);
+    } else {
+      setAgent(null);
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load agent detail",
+        `Agent metadata unavailable: ${getErrorMessage(
+          agentResult.reason,
+          "Failed to load agent metadata",
+        )}`,
       );
-    } finally {
-      setIsLoading(false);
     }
+
+    if (healthResult.status === "fulfilled") {
+      setHealth(healthResult.value);
+      setLastHealthCheckAt(new Date());
+      setHealthErrorMessage(null);
+    } else {
+      setHealth(null);
+      setLastHealthCheckAt(new Date());
+      setHealthErrorMessage(
+        getErrorMessage(healthResult.reason, "Health check failed"),
+      );
+    }
+
+    if (interfacesResult.status === "fulfilled") {
+      setInterfaces(interfacesResult.value);
+      setInterfacesErrorMessage(null);
+      setSelectedInterface((current) => {
+        const hasCurrentInterface = interfacesResult.value.interfaces.some(
+          (iface) => iface.name === current,
+        );
+
+        if (hasCurrentInterface) {
+          return current;
+        }
+
+        return interfacesResult.value.interfaces[0]?.name || "";
+      });
+    } else {
+      setInterfaces(null);
+      setSelectedInterface("");
+      setInterfacesErrorMessage(
+        getErrorMessage(interfacesResult.reason, "Interface list failed"),
+      );
+    }
+
+    if (capturesResult.status === "fulfilled") {
+      setCaptures(capturesResult.value);
+      setCapturesErrorMessage(null);
+    } else {
+      setCaptures(null);
+      setCapturesErrorMessage(
+        getErrorMessage(capturesResult.reason, "Capture list failed"),
+      );
+    }
+
+    if (storedCapturesResult.status === "fulfilled") {
+      setStoredCaptures(
+        storedCapturesResult.value.filter(
+          (storedCapture) => storedCapture.agent_id === agentId,
+        ),
+      );
+      setStoredCapturesErrorMessage(null);
+    } else {
+      setStoredCaptures([]);
+      setStoredCapturesErrorMessage(
+        getErrorMessage(
+          storedCapturesResult.reason,
+          "Stored captures unavailable",
+        ),
+      );
+    }
+
+    setIsLoading(false);
   }
 
   async function refreshHealth() {
@@ -259,14 +384,18 @@ export function AgentDetailPage() {
     }
 
     setIsRefreshingHealth(true);
+    setHealthErrorMessage(null);
 
     try {
       const healthResult = await getAgentHealth(agentId);
       setHealth(healthResult);
       setLastHealthCheckAt(new Date());
+      setHealthErrorMessage(null);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to refresh health",
+      setHealth(null);
+      setLastHealthCheckAt(new Date());
+      setHealthErrorMessage(
+        getErrorMessage(error, "Failed to refresh health"),
       );
     } finally {
       setIsRefreshingHealth(false);
@@ -281,15 +410,19 @@ export function AgentDetailPage() {
     if (!options.silent) {
       setIsLoadingCaptures(true);
       setErrorMessage(null);
+      setCapturesErrorMessage(null);
     }
 
     try {
       const result = await listAgentCaptures(agentId);
       setCaptures(result);
+      setCapturesErrorMessage(null);
+      void loadStoredCapturesForAgent({ silent: true });
     } catch (error) {
       if (!options.silent) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load captures",
+        setCaptures(null);
+        setCapturesErrorMessage(
+          getErrorMessage(error, "Failed to load captures"),
         );
       }
     } finally {
@@ -552,7 +685,12 @@ export function AgentDetailPage() {
 
             <span>
               <IconDatabase size={15} />
-              {totalCaptures} captures
+              {knownCaptureCount} captures
+            </span>
+
+            <span>
+              <IconDatabase size={15} />
+              {storedCaptureCount} stored
             </span>
           </div>
         </div>
@@ -678,6 +816,11 @@ export function AgentDetailPage() {
                     <dd>{health.health.version || "—"}</dd>
                   </div>
                 </dl>
+              ) : healthErrorMessage ? (
+                <div className="empty-state compact-empty-state">
+                  <h3>Health unavailable</h3>
+                  <p>{healthErrorMessage}</p>
+                </div>
               ) : (
                 <p className="muted-text">No health data available.</p>
               )}
@@ -721,38 +864,6 @@ export function AgentDetailPage() {
           <section className="page-card">
             <div className="section-heading">
               <div>
-                <h3>Interfaces</h3>
-                <p>
-                  {interfaceCount} interface{interfaceCount === 1 ? "" : "s"}{" "}
-                  available.
-                </p>
-              </div>
-            </div>
-
-            {!interfaces || interfaces.interfaces.length === 0 ? (
-              <div className="empty-state">
-                <h3>No interfaces found</h3>
-                <p>The agent did not return any capture interfaces.</p>
-              </div>
-            ) : (
-              <div className="interface-card-grid">
-                {interfaces.interfaces.map((iface) => (
-                  <article className="interface-card" key={iface.name}>
-                    <div>
-                      <span>Interface</span>
-                      <strong>{iface.name}</strong>
-                    </div>
-
-                    <p>{iface.description || "No description reported"}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="page-card">
-            <div className="section-heading">
-              <div>
                 <h3>Start capture</h3>
                 <p>Create a remote capture session on this agent.</p>
               </div>
@@ -760,6 +871,13 @@ export function AgentDetailPage() {
 
             {captureMessage && (
               <div className="alert alert-success">{captureMessage}</div>
+            )}
+
+            {interfacesErrorMessage && (
+              <div className="alert alert-error">
+                Interfaces unavailable. Capture start is disabled until the
+                agent returns interface data.
+              </div>
             )}
 
             <form className="capture-builder" onSubmit={handleStartCapture}>
@@ -1111,10 +1229,14 @@ export function AgentDetailPage() {
             <div className="section-heading">
               <div>
                 <h3>Captures</h3>
-                <p>
-                  {totalCaptures} capture{totalCaptures === 1 ? "" : "s"} known
-                  on this agent.
-                </p>
+                {capturesErrorMessage ? (
+                  <p>Remote capture list unavailable.</p>
+                ) : (
+                  <p>
+                    {totalCaptures} capture{totalCaptures === 1 ? "" : "s"}{" "}
+                    known on this agent.
+                  </p>
+                )}
               </div>
 
               <button
@@ -1125,6 +1247,12 @@ export function AgentDetailPage() {
                 {isLoadingCaptures ? "Refreshing..." : "Refresh captures"}
               </button>
             </div>
+
+            {capturesErrorMessage && (
+              <div className="alert alert-error">
+                Remote captures unavailable: {capturesErrorMessage}
+              </div>
+            )}
 
             {hasActiveCaptures && (
               <div className="active-capture-grid">
@@ -1249,7 +1377,15 @@ export function AgentDetailPage() {
               </div>
             )}
 
-            {!captures || captures.captures.length === 0 ? (
+            {capturesErrorMessage ? (
+              <div className="empty-state compact-empty-state">
+                <h3>Remote captures unavailable</h3>
+                <p>
+                  The agent did not return its live capture list. Controller
+                  stored captures remain available below.
+                </p>
+              </div>
+            ) : !captures || captures.captures.length === 0 ? (
               <div className="empty-state">
                 <h3>No captures found</h3>
                 <p>Start a capture to see it listed here.</p>
@@ -1315,6 +1451,106 @@ export function AgentDetailPage() {
                               Stop
                             </button>
                           )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="page-card">
+            <div className="section-heading">
+              <div>
+                <h3>Controller stored captures</h3>
+                <p>
+                  {storedCaptureCount} persisted capture
+                  {storedCaptureCount === 1 ? "" : "s"} for this agent.
+                </p>
+              </div>
+
+              <button
+                className="small-button"
+                onClick={() => void loadStoredCapturesForAgent()}
+              >
+                Refresh stored
+              </button>
+            </div>
+
+            {storedCapturesErrorMessage && (
+              <div className="alert alert-error">
+                Stored captures unavailable: {storedCapturesErrorMessage}
+              </div>
+            )}
+
+            {storedCapturesErrorMessage ? (
+              <div className="empty-state compact-empty-state">
+                <h3>Stored captures unavailable</h3>
+                <p>{storedCapturesErrorMessage}</p>
+              </div>
+            ) : storedCaptures.length === 0 ? (
+              <div className="empty-state">
+                <h3>No stored captures found</h3>
+                <p>
+                  Fetch a completed PCAP to controller storage to keep it
+                  available while the agent is offline.
+                </p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Status</th>
+                      <th>Size</th>
+                      <th>Fetched</th>
+                      <th />
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {storedCaptures.map((storedCapture) => (
+                      <tr key={storedCapture.capture_id}>
+                        <td>
+                          <code>{storedCapture.capture_id}</code>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`status-badge ${
+                              storedCapture.exists
+                                ? "status-good"
+                                : "status-danger"
+                            }`}
+                          >
+                            {storedCapture.exists ? "stored" : "missing"}
+                          </span>
+                        </td>
+
+                        <td>{formatBytes(storedCapture.file_size_bytes)}</td>
+                        <td>{formatUnixTime(storedCapture.fetched_at)}</td>
+
+                        <td className="table-actions">
+                          <Link
+                            className="small-button"
+                            to={`/captures/${agentId}/${storedCapture.capture_id}/packets`}
+                          >
+                            Packet view
+                            <IconArrowRight size={14} />
+                          </Link>
+
+                          <a
+                            className="small-button"
+                            href={getControllerStoredCaptureDownloadUrl(
+                              agentId,
+                              storedCapture.capture_id,
+                            )}
+                            download
+                          >
+                            Download
+                          </a>
                         </td>
                       </tr>
                     ))}
@@ -1534,4 +1770,8 @@ function getDisplayedElapsedSeconds(
   }
 
   return Math.min(elapsedSeconds, capture.config.duration_seconds);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }

@@ -14,6 +14,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build                  Alias for backend-build"
 	@echo "  rebuild                Alias for backend-rebuild"
+	@echo "  install-deps           Install all software dependencies"
 	@echo "  backend-build          Configure and build the C++ backend"
 	@echo "  backend-clean          Remove backend build directory"
 	@echo "  backend-rebuild        Clean and rebuild backend"
@@ -30,6 +31,10 @@ help:
 build: backend-build
 rebuild: backend-rebuild
 clean-all: clean
+
+install-deps:
+	sudo apt update
+	sudo apt install -y build-essential cmake libpcap-dev
 
 backend-build:
 	cmake -S $(BACKEND_DIR) -B $(BACKEND_BUILD_DIR)
