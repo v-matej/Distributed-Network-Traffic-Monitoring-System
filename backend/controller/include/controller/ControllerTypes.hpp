@@ -111,6 +111,51 @@ struct PcapProtocolCounters {
     std::uint64_t other_l4 = 0;
 };
 
+struct PcapProtocolDistributionEntry {
+    std::string name;
+    std::uint64_t packets = 0;
+    std::uint64_t bytes = 0;
+    double percentage = 0.0;
+};
+
+struct PcapDestinationIpAnalysis {
+    std::string ip_address;
+    std::string classification;
+    std::string country_code = "unknown";
+    std::string country_name = "unknown";
+    std::uint64_t packets = 0;
+    std::uint64_t bytes = 0;
+};
+
+struct PcapServiceAnalysis {
+    std::string service_name;
+    std::string transport_protocol;
+    int port = 0;
+    std::uint64_t packets = 0;
+    std::uint64_t bytes = 0;
+};
+
+struct PcapConversationAnalysis {
+    std::string source_ip;
+    std::string destination_ip;
+    std::string destination_classification;
+    std::string destination_country_code = "unknown";
+    std::string destination_country_name = "unknown";
+    std::string transport_protocol;
+    std::string service_name;
+    int service_port = 0;
+    std::uint64_t packets = 0;
+    std::uint64_t bytes = 0;
+};
+
+struct PcapAnalysisSummary {
+    double average_packet_size_bytes = 0.0;
+    std::string main_protocol = "unknown";
+    std::string main_service = "unknown";
+    bool external_traffic_detected = false;
+    bool dns_traffic_detected = false;
+};
+
 struct PcapAnalysisResult {
     std::string agent_id;
     std::string capture_id;
@@ -127,6 +172,12 @@ struct PcapAnalysisResult {
     double duration_seconds = 0.0;
 
     PcapProtocolCounters protocols;
+    PcapAnalysisSummary summary;
+
+    std::vector<PcapProtocolDistributionEntry> protocol_distribution;
+    std::vector<PcapConversationAnalysis> top_conversations;
+    std::vector<PcapServiceAnalysis> top_destination_services;
+    std::vector<PcapDestinationIpAnalysis> top_destination_ip_details;
 
     std::vector<PcapAnalysisCounter> top_source_ips;
     std::vector<PcapAnalysisCounter> top_destination_ips;

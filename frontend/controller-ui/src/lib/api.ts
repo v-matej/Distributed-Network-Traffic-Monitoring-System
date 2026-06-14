@@ -271,6 +271,51 @@ export type PcapProtocolCounters = {
   other_l4: number;
 };
 
+export type PcapAnalysisSummary = {
+  average_packet_size_bytes: number;
+  main_protocol: string;
+  main_service: string;
+  external_traffic_detected: boolean;
+  dns_traffic_detected: boolean;
+};
+
+export type PcapProtocolDistributionEntry = {
+  name: string;
+  packets: number;
+  bytes: number;
+  percentage: number;
+};
+
+export type PcapConversationAnalysis = {
+  source_ip: string;
+  destination_ip: string;
+  destination_classification: string;
+  destination_country_code: string;
+  destination_country_name: string;
+  transport_protocol: string;
+  service_name: string;
+  service_port: number;
+  packets: number;
+  bytes: number;
+};
+
+export type PcapServiceAnalysis = {
+  service_name: string;
+  transport_protocol: string;
+  port: number;
+  packets: number;
+  bytes: number;
+};
+
+export type PcapDestinationIpAnalysis = {
+  ip_address: string;
+  classification: string;
+  country_code: string;
+  country_name: string;
+  packets: number;
+  bytes: number;
+};
+
 export type PcapAnalysisResult = {
   agent_id: string;
   capture_id: string;
@@ -284,6 +329,11 @@ export type PcapAnalysisResult = {
   last_packet_time: number;
   duration_seconds: number;
   protocols: PcapProtocolCounters;
+  summary?: PcapAnalysisSummary;
+  protocol_distribution?: PcapProtocolDistributionEntry[];
+  top_conversations?: PcapConversationAnalysis[];
+  top_destination_services?: PcapServiceAnalysis[];
+  top_destination_ip_details?: PcapDestinationIpAnalysis[];
   top_source_ips: PcapAnalysisCounter[];
   top_destination_ips: PcapAnalysisCounter[];
   top_source_ports: PcapAnalysisCounter[];

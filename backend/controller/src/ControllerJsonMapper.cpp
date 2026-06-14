@@ -319,6 +319,105 @@ json protocol_counters_to_json_value(const PcapProtocolCounters& protocols) {
     return j;
 }
 
+json analysis_summary_to_json_value(const PcapAnalysisSummary& summary) {
+    json j;
+    j["average_packet_size_bytes"] = summary.average_packet_size_bytes;
+    j["main_protocol"] = summary.main_protocol;
+    j["main_service"] = summary.main_service;
+    j["external_traffic_detected"] = summary.external_traffic_detected;
+    j["dns_traffic_detected"] = summary.dns_traffic_detected;
+    return j;
+}
+
+json protocol_distribution_to_json_value(
+    const std::vector<PcapProtocolDistributionEntry>& distribution
+) {
+    json j = json::array();
+
+    for (const auto& entry : distribution) {
+        j.push_back({
+            {"name", entry.name},
+            {"packets", entry.packets},
+            {"bytes", entry.bytes},
+            {"percentage", entry.percentage}
+        });
+    }
+
+    return j;
+}
+
+json destination_ip_analysis_to_json_value(const PcapDestinationIpAnalysis& destination) {
+    json j;
+    j["ip_address"] = destination.ip_address;
+    j["classification"] = destination.classification;
+    j["country_code"] = destination.country_code;
+    j["country_name"] = destination.country_name;
+    j["packets"] = destination.packets;
+    j["bytes"] = destination.bytes;
+    return j;
+}
+
+json destination_ip_analysis_vector_to_json_value(
+    const std::vector<PcapDestinationIpAnalysis>& destinations
+) {
+    json j = json::array();
+
+    for (const auto& destination : destinations) {
+        j.push_back(destination_ip_analysis_to_json_value(destination));
+    }
+
+    return j;
+}
+
+json service_analysis_to_json_value(const PcapServiceAnalysis& service) {
+    json j;
+    j["service_name"] = service.service_name;
+    j["transport_protocol"] = service.transport_protocol;
+    j["port"] = service.port;
+    j["packets"] = service.packets;
+    j["bytes"] = service.bytes;
+    return j;
+}
+
+json service_analysis_vector_to_json_value(
+    const std::vector<PcapServiceAnalysis>& services
+) {
+    json j = json::array();
+
+    for (const auto& service : services) {
+        j.push_back(service_analysis_to_json_value(service));
+    }
+
+    return j;
+}
+
+json conversation_analysis_to_json_value(const PcapConversationAnalysis& conversation) {
+    json j;
+    j["source_ip"] = conversation.source_ip;
+    j["destination_ip"] = conversation.destination_ip;
+    j["destination_classification"] = conversation.destination_classification;
+    j["destination_country_code"] = conversation.destination_country_code;
+    j["destination_country_name"] = conversation.destination_country_name;
+    j["transport_protocol"] = conversation.transport_protocol;
+    j["service_name"] = conversation.service_name;
+    j["service_port"] = conversation.service_port;
+    j["packets"] = conversation.packets;
+    j["bytes"] = conversation.bytes;
+    return j;
+}
+
+json conversation_analysis_vector_to_json_value(
+    const std::vector<PcapConversationAnalysis>& conversations
+) {
+    json j = json::array();
+
+    for (const auto& conversation : conversations) {
+        j.push_back(conversation_analysis_to_json_value(conversation));
+    }
+
+    return j;
+}
+
 json pcap_analysis_to_json_value(const PcapAnalysisResult& analysis) {
     json j;
     j["agent_id"] = analysis.agent_id;
@@ -333,6 +432,15 @@ json pcap_analysis_to_json_value(const PcapAnalysisResult& analysis) {
     j["last_packet_time"] = analysis.last_packet_time;
     j["duration_seconds"] = analysis.duration_seconds;
     j["protocols"] = protocol_counters_to_json_value(analysis.protocols);
+    j["summary"] = analysis_summary_to_json_value(analysis.summary);
+    j["protocol_distribution"] =
+        protocol_distribution_to_json_value(analysis.protocol_distribution);
+    j["top_conversations"] =
+        conversation_analysis_vector_to_json_value(analysis.top_conversations);
+    j["top_destination_services"] =
+        service_analysis_vector_to_json_value(analysis.top_destination_services);
+    j["top_destination_ip_details"] =
+        destination_ip_analysis_vector_to_json_value(analysis.top_destination_ip_details);
     j["top_source_ips"] = analysis_counter_vector_to_json_value(analysis.top_source_ips);
     j["top_destination_ips"] = analysis_counter_vector_to_json_value(analysis.top_destination_ips);
     j["top_source_ports"] = analysis_counter_vector_to_json_value(analysis.top_source_ports);

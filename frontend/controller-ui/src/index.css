@@ -602,9 +602,9 @@
     overflow-wrap: anywhere;
   }
 
-  .status-badge {
-    @apply inline-flex items-center border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em];
-  }
+.status-badge {
+  @apply inline-flex items-center border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em];
+}
 
   .status-good {
     @apply border-console-green/40 bg-console-green/10 text-console-green;
@@ -2017,6 +2017,93 @@ html[data-theme="light"] .sidebar-status-meta {
   text-transform: uppercase;
 }
 
+.analysis-wide-card {
+  margin-top: 14px;
+}
+
+.analysis-primary-grid {
+  align-items: start;
+}
+
+.analysis-card-wide {
+  grid-column: 1 / -1;
+}
+
+.protocol-distribution-list {
+  display: grid;
+  gap: 12px;
+}
+
+.protocol-distribution-row {
+  display: grid;
+  gap: 7px;
+}
+
+.protocol-distribution-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.protocol-distribution-meta strong {
+  color: var(--text);
+  font-family: "Share Tech Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.protocol-distribution-meta span {
+  color: var(--muted);
+  font-family: "Share Tech Mono", ui-monospace, monospace;
+  font-size: 11px;
+  text-align: right;
+}
+
+.protocol-bar-track {
+  height: 9px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  background: rgba(8, 12, 16, 0.76);
+}
+
+.protocol-bar-fill {
+  height: 100%;
+  background:
+    linear-gradient(90deg, rgba(0, 255, 136, 0.88), rgba(0, 229, 255, 0.88));
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.22);
+}
+
+.advanced-analysis-counters {
+  margin-top: 14px;
+}
+
+.advanced-analysis-counters summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+}
+
+.advanced-analysis-counters summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-analysis-counters summary h4 {
+  margin-bottom: 5px;
+}
+
+.advanced-analysis-counters summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.advanced-analysis-counters .analysis-grid {
+  margin-top: 12px;
+}
+
 html[data-theme="light"] .analysis-section {
   border-color: rgba(0, 111, 134, 0.32) !important;
 }
@@ -2033,6 +2120,11 @@ html[data-theme="light"] .protocol-analysis-card strong {
 
 html[data-theme="light"] .analysis-card h4 {
   color: var(--text) !important;
+}
+
+html[data-theme="light"] .protocol-bar-track {
+  background: rgba(234, 244, 238, 0.86) !important;
+  border-color: rgba(0, 111, 134, 0.24) !important;
 }
 
 @media (max-width: 1180px) {
