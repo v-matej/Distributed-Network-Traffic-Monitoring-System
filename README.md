@@ -1,53 +1,42 @@
 # Distributed Network Traffic Monitoring System
 
-A modular distributed network traffic monitoring system built in **C++** for Linux environments.
+Version: `v1.0.0`
 
-The project currently includes:
+A distributed network traffic monitoring system for Linux environments. The project is built around a central controller and multiple lightweight agents. Agents run on monitored machines, perform packet capture with `libpcap`, and expose capture operations over HTTP/JSON. The controller manages known agents, starts and stops remote captures, persists downloaded PCAP files, analyzes stored captures, and provides a React-based web interface for demonstration and inspection.
 
-- a **packet sniffer** built on top of **libpcap**
-- an **agent** that exposes capture operations over **HTTP/JSON**
-- an initial **controller backend skeleton** that can manage known agents and query them over HTTP
-
-The long-term goal is a distributed system where multiple agents run on monitored machines and a central controller manages them through a web-based interface.
+This project is intended for a diploma project scenario where the system is deployed across virtual machines on a private lab network.
 
 ---
 
-## Current project status
+## Implemented System
 
-### Implemented
+The current system includes:
 
-- packet sniffer library and CLI wrapper
-- asynchronous capture management in the agent
-- agent HTTP API for:
-  - health
-  - interfaces
-  - capture creation
-  - capture status
-  - capture stop
-- controller backend with persistent known-agent registry stored on disk
-- controller HTTP API for:
-  - listing known agents
-  - adding agents
-  - deleting one known agent
-  - clearing all known-agent storage
-  - querying agent health through the controller
-  - querying agent interfaces through the controller
-  - starting, listing, querying, and stopping remote captures through the controller
+- C++ packet sniffer library built on top of `libpcap`
+- `packet_sniffer` CLI for low-level capture testing
+- `agent_server` HTTP service for monitored machines
+- `controller_server` HTTP service for central management
+- persistent controller agent registry in `backend/data/known_agents.json`
+- controller-side PCAP storage in `backend/data/captures/<agent_id>/`
+- controller-side analysis result cache in `<capture_id>.analysis.json`
+- React/Vite controller UI
+- manual agent registration
+- health and interface checks through the controller
+- remote capture start, list, detail, stop, and download workflows
+- fetch-to-controller workflow for keeping captures available when agents are offline
+- packet analysis with protocol distribution, conversations, services, destination classification, and advanced counters
+- packet inspection view for individual stored PCAP packets
+- stored capture deletion from Agent Detail and Captures pages
 
-### Not yet implemented
-
-- controller web UI
-- agent auto-discovery
-- PCAP download through the controller
+Automatic local discovery is not required for v1.0.0. Agents are added manually from the UI or with the controller API.
 
 ---
 
-## Architecture overview
-
-### Current architecture
+## Architecture
 
 ```text
-Browser / Future Web UI
+Browser
+    -> React Controller UI
     -> Controller HTTP API
     -> Controller service layer
     -> Agent HTTP client
@@ -58,92 +47,86 @@ Browser / Future Web UI
     -> libpcap
 ```
 
-### Main components
+### Main Components
 
-#### 1. Sniffer
+**Sniffer**
 
-Low-level packet capture logic using **libpcap**.
+- enumerates network interfaces
+- captures packets from a selected interface
+- supports BPF filter expressions
+- supports packet-count and duration limits
+- writes `.pcap` files
 
-Responsibilities:
+**Agent**
 
-- enumerate interfaces
-- capture packets from an interface
-- support time-limited capture
-- support packet-count-limited capture
-- support external stop requests
-- optionally save traffic to a `.pcap` file
+- runs on each monitored machine
+- exposes `/health`, `/interfaces`, and `/captures` endpoints
+- starts captures asynchronously
+- tracks active and completed capture sessions
+- stops running captures
+- serves completed PCAP files for download
 
-#### 2. Agent
+**Controller**
 
-Runs on monitored machines and exposes packet capture functionality over HTTP.
+- stores the list of known agents
+- proxies health, interface, and capture commands to agents
+- stores fetched PCAP files under `backend/data/captures`
+- stores capture metadata as `<capture_id>.json`
+- stores cached analysis as `<capture_id>.analysis.json`
+- serves stored PCAP download, analysis, packet listing, and packet detail endpoints
+- allows stored captures to be deleted
 
-Responsibilities:
+**Frontend UI**
 
-- report health/status
-- list available interfaces
-- start asynchronous capture sessions
-- track running and completed sessions
-- stop active captures
-- store generated `.pcap` files locally
-
-#### 3. Controller
-
-Central management component.
-
-Current responsibilities:
-
-- maintain a list of known agents with JSON-file persistence
-- contact agents over HTTP/JSON
-- expose its own HTTP API for management
-- proxy agent health and interface queries
-- manage remote capture lifecycle through the controller API
-
-Planned responsibilities:
-
-- manage multiple agents
-- start and monitor remote captures
-- support manual add/remove and automatic discovery
-- provide a web UI
+- dashboard overview
+- agent registry and manual add/remove
+- agent detail page with health, capture builder, remote captures, and stored captures
+- global captures page
+- capture detail page with analysis visualization
+- packet inspection page
+- settings page for controller storage actions
 
 ---
 
-## Repository structure
+## Repository Structure
 
 ```text
 .
-├── CMakeLists.txt
 ├── Makefile
 ├── README.md
-├── external/
-├── include/
+├── backend/
+│   ├── CMakeLists.txt
 │   ├── agent/
+│   ├── apps/
+│   │   ├── agent_server/
+│   │   ├── controller_server/
+│   │   └── packet_sniffer/
 │   ├── controller/
+│   ├── captures/
+│   ├── data/
+│   ├── external/
 │   └── sniffer/
-├── src/
-│   ├── agent/
-│   ├── agent_app/
-│   ├── cli/
-│   ├── controller/
-│   ├── controller_app/
-│   └── sniffer/
-├── captures/
-├── data/
-└── build/
+├── frontend/
+│   └── controller-ui/
+└── docs/
 ```
 
-### Important executables
+Important runtime storage:
 
-After building, the following binaries are expected in `build/`:
+```text
+backend/data/known_agents.json
+backend/data/captures/<agent_id>/<capture_id>.pcap
+backend/data/captures/<agent_id>/<capture_id>.json
+backend/data/captures/<agent_id>/<capture_id>.analysis.json
+```
 
-- `packet_sniffer` — CLI debug/test tool for the sniffer
-- `agent_server` — HTTP server exposing the agent API
-- `controller_server` — HTTP server exposing the controller API
+The analysis cache is valid only when the stored PCAP file size and modification time match the values saved in the cache file.
 
 ---
 
 ## Requirements
 
-### System requirements
+### Backend
 
 - Linux
 - CMake
@@ -151,94 +134,336 @@ After building, the following binaries are expected in `build/`:
 - C++20-compatible compiler
 - `libpcap` development headers and runtime
 
-### Example package installation on Debian/Ubuntu
+### Frontend
+
+- Node.js and npm
+
+### Debian/Ubuntu Setup
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake libpcap-dev
+sudo apt install -y build-essential cmake libpcap-dev nodejs npm
 ```
 
 ---
 
 ## Build
 
-Build from the repository root:
+Run commands from the repository root.
+
+### Backend Build
 
 ```bash
-make build
+make backend-build
 ```
 
-Clean build artifacts:
+This configures and builds:
+
+- `backend/build/packet_sniffer`
+- `backend/build/agent_server`
+- `backend/build/controller_server`
+
+### Frontend Install
+
+```bash
+make frontend-install
+```
+
+### Frontend Build
+
+```bash
+make frontend-build
+```
+
+### Clean
 
 ```bash
 make clean
 ```
 
-Manual rebuild from scratch:
-
-```bash
-rm -rf build
-cmake -S . -B build
-cmake --build build
-```
-
 ---
 
-## Running the components
+## Running the System
 
-### 1. Packet sniffer CLI
+Use separate terminals for each service.
 
-List interfaces:
+### Run Agent Server
 
 ```bash
-sudo ./build/packet_sniffer --list
+make backend-run-agent
 ```
 
-Capture 20 packets:
+Equivalent command:
 
 ```bash
-sudo ./build/packet_sniffer -i <interface> -c 20 -w test.pcap
-```
-
-Capture for 10 seconds:
-
-```bash
-sudo ./build/packet_sniffer -i <interface> -t 10 -w test.pcap
-```
-
-Capture only ICMP traffic:
-
-```bash
-sudo ./build/packet_sniffer -i <interface> -t 10 -f "icmp" -w icmp_test.pcap
-```
-
-### 2. Agent server
-
-Start the agent:
-
-```bash
+cd backend
 sudo ./build/agent_server
 ```
 
 The agent listens on:
 
-- `0.0.0.0:8080`
+```text
+0.0.0.0:8080
+```
 
-### 3. Controller server
+Packet capture normally requires elevated privileges, so the agent is usually run with `sudo`.
 
-Start the controller:
+### Run Controller Server
 
 ```bash
+make backend-run-controller
+```
+
+Equivalent command:
+
+```bash
+cd backend
 ./build/controller_server
 ```
 
 The controller listens on:
 
-- `0.0.0.0:8090`
+```text
+0.0.0.0:8090
+```
+
+### Run Frontend UI
+
+```bash
+make frontend-dev
+```
+
+Equivalent command:
+
+```bash
+cd frontend/controller-ui
+npm run dev -- --host 0.0.0.0
+```
+
+Open the Vite URL shown in the terminal, usually:
+
+```text
+http://127.0.0.1:5173
+```
+
+The frontend dev server proxies `/api` requests to:
+
+```text
+http://127.0.0.1:8090
+```
 
 ---
 
-## Agent HTTP API
+## Recommended VM Topology
+
+Use three VMs connected to the same host-only or internal network:
+
+```text
+192.168.56.0/24
+
+controller-vm   192.168.56.10   controller_server + frontend UI
+agent-1-vm      192.168.56.11   agent_server
+agent-2-vm      192.168.56.12   agent_server
+```
+
+Recommended VirtualBox setup:
+
+- Adapter 1: NAT, for package installation and updates
+- Adapter 2: Host-only Adapter, for the lab network
+- Host-only network: `192.168.56.0/24`
+
+Example service placement:
+
+```text
+controller-vm:
+  cd backend && ./build/controller_server
+  make frontend-dev
+
+agent-1-vm:
+  cd backend && sudo ./build/agent_server
+
+agent-2-vm:
+  cd backend && sudo ./build/agent_server
+```
+
+From the host machine, open:
+
+```text
+http://192.168.56.10:5173
+```
+
+---
+
+## Manual Agent Add
+
+Agents can be added from the UI:
+
+1. Open the frontend UI.
+2. Go to `Agents`.
+3. Enter a display name, host, and port.
+4. Add each VM agent.
+
+Example values:
+
+```text
+Display name: Agent 1
+Host: 192.168.56.11
+Port: 8080
+
+Display name: Agent 2
+Host: 192.168.56.12
+Port: 8080
+```
+
+The same action can be performed with curl:
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "display_name": "Agent 1",
+    "host": "192.168.56.11",
+    "port": 8080
+  }'
+```
+
+The controller assigns IDs such as `agent-0001` and persists them in `backend/data/known_agents.json`.
+
+---
+
+## Capture Workflow
+
+1. Open the UI.
+2. Go to `Agents`.
+3. Select an agent.
+4. Confirm that health and interface data are available.
+5. Choose an interface.
+6. Optionally build a packet filter using protocol, service, host, port, MAC, or raw BPF fields.
+7. Set a duration limit or packet limit.
+8. Start the capture.
+9. Watch active capture state in Agent Detail, Captures, or Dashboard.
+10. Stop a long-running capture if needed.
+
+Equivalent controller API request:
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures \
+  -H "Content-Type: application/json" \
+  -d '{
+    "interface_name": "enp0s8",
+    "filter_expression": "icmp or tcp port 80",
+    "duration_seconds": 20
+  }'
+```
+
+---
+
+## Fetch-to-Controller Workflow
+
+Completed PCAP files initially live on the agent that captured them. Fetching a capture copies it to controller storage so the controller can analyze it later, even if the agent is offline.
+
+UI workflow:
+
+1. Open a completed capture from Agent Detail or Captures.
+2. Use `Fetch to controller`.
+3. The capture is stored under `backend/data/captures/<agent_id>/`.
+4. The stored capture appears in Agent Detail and the global Captures page.
+5. Stored captures can be downloaded, analyzed, inspected packet by packet, or deleted.
+
+Equivalent controller API request:
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/fetch
+```
+
+Stored PCAP download:
+
+```bash
+curl -OJ http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/download
+```
+
+Delete a stored capture:
+
+```bash
+curl -X DELETE http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID
+```
+
+Deleting a stored capture removes the controller-side `.pcap`, metadata `.json`, and cached `.analysis.json` files for that capture.
+
+---
+
+## Analysis Workflow
+
+Analysis runs against controller-stored PCAP files.
+
+UI workflow:
+
+1. Fetch a completed capture to controller storage.
+2. Open the capture detail page.
+3. Use the analysis section.
+4. Review summary cards:
+   - total packets
+   - total bytes
+   - capture duration
+   - average packet size
+   - main protocol
+   - main service
+   - external traffic detected
+   - DNS traffic detected
+5. Review protocol distribution bars.
+6. Review top conversations, destination services, and destination IP classifications.
+7. Expand advanced counters when raw source/destination IP and port counters are needed.
+
+Equivalent controller API request:
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/analysis
+```
+
+When this endpoint is called:
+
+1. The controller checks `<capture_id>.analysis.json`.
+2. If file size and modification time match the PCAP, cached analysis is returned.
+3. If the cache is missing or stale, the controller runs `PcapAnalyzer`.
+4. A fresh analysis cache is saved and returned.
+
+The analysis model includes:
+
+- protocol counters and protocol distribution
+- top conversations grouped by source IP, destination IP, transport protocol, and relevant service port
+- top destination services with service-name mapping for common ports
+- top destination IP details with private/public/broadcast/multicast/loopback/link-local classification
+- optional country fields for public destination IPs
+- backward-compatible raw top source IP, destination IP, source port, and destination port counters
+
+---
+
+## Packet Inspection Workflow
+
+Packet inspection also runs against controller-stored PCAP files.
+
+UI workflow:
+
+1. Fetch a completed capture to controller storage.
+2. Open `Packet view` from Agent Detail or Captures, or open the capture and navigate to packet inspection.
+3. Browse packet summaries.
+4. Select a packet to inspect decoded layers and hex output.
+
+Equivalent controller API requests:
+
+```bash
+curl "http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/packets?offset=0&limit=50"
+```
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/packets/1
+```
+
+---
+
+## Useful API Endpoints
+
+### Agent API
 
 Base URL:
 
@@ -246,57 +471,17 @@ Base URL:
 http://<agent-host>:8080
 ```
 
-### Health
-
 ```http
-GET /health
-```
-
-### Interfaces
-
-```http
-GET /interfaces
-```
-
-### Start capture
-
-```http
+GET  /health
+GET  /interfaces
 POST /captures
-Content-Type: application/json
+GET  /captures
+GET  /captures/{captureId}
+POST /captures/{captureId}/stop
+GET  /captures/{captureId}/download
 ```
 
-Example request body:
-
-```json
-{
-  "interface_name": "eth0",
-  "filter_expression": "icmp",
-  "packet_count": 0,
-  "duration_seconds": 10
-}
-```
-
-### List captures
-
-```http
-GET /captures
-```
-
-### Get capture by ID
-
-```http
-GET /captures/{id}
-```
-
-### Stop capture
-
-```http
-POST /captures/{id}/stop
-```
-
----
-
-## Controller HTTP API
+### Controller API
 
 Base URL:
 
@@ -304,175 +489,61 @@ Base URL:
 http://<controller-host>:8090
 ```
 
-### List known agents
-
 ```http
-GET /api/agents
-```
-
-### Add a known agent
-
-```http
-POST /api/agents
-Content-Type: application/json
-```
-
-Example request body:
-
-```json
-{
-  "display_name": "local-agent",
-  "host": "127.0.0.1",
-  "port": 8080
-}
-```
-
-### Get one known agent
-
-```http
-GET /api/agents/{id}
-```
-
-### Delete one known agent
-
-```http
-DELETE /api/agents/{id}
-```
-
-### Clear all known-agent storage
-
-```http
+GET    /api/agents
+POST   /api/agents
 DELETE /api/agents
-```
-
-### Query agent health through the controller
-
-```http
-GET /api/agents/{id}/health
-```
-
-### Query agent interfaces through the controller
-
-```http
-GET /api/agents/{id}/interfaces
-```
-
-### Start remote capture through controller
-
-```http
-POST /api/agents/{id}/captures
-Content-Type: application/json
-```
-
-### List remote captures through controller
-
-```http
-GET /api/agents/{id}/captures
-```
-
-### Get one remote capture through controller
-
-```http
-GET /api/agents/{id}/captures/{captureId}
-```
-
-### Stop one remote capture through controller
-
-```http
-POST /api/agents/{id}/captures/{captureId}/stop
+GET    /api/agents/{agentId}
+DELETE /api/agents/{agentId}
+GET    /api/agents/{agentId}/health
+GET    /api/agents/{agentId}/interfaces
+POST   /api/agents/{agentId}/captures
+GET    /api/agents/{agentId}/captures
+GET    /api/agents/{agentId}/captures/{captureId}
+POST   /api/agents/{agentId}/captures/{captureId}/stop
+GET    /api/agents/{agentId}/captures/{captureId}/download
+POST   /api/agents/{agentId}/captures/{captureId}/fetch
+GET    /api/controller/captures
+GET    /api/controller/captures/{agentId}/{captureId}
+DELETE /api/controller/captures/{agentId}/{captureId}
+GET    /api/controller/captures/{agentId}/{captureId}/download
+GET    /api/controller/captures/{agentId}/{captureId}/analysis
+GET    /api/controller/captures/{agentId}/{captureId}/packets
+GET    /api/controller/captures/{agentId}/{captureId}/packets/{packetNumber}
 ```
 
 ---
 
-## Example test flow
+## Demonstration
 
-### Start the agent
+A complete final demo script is available in:
 
-```bash
-sudo ./build/agent_server
+```text
+docs/demo-scenario.md
 ```
 
-### Start the controller
-
-```bash
-./build/controller_server
-```
-
-### Register the agent in the controller
-
-```bash
-curl -X POST http://127.0.0.1:8090/api/agents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "display_name": "local-agent",
-    "host": "127.0.0.1",
-    "port": 8080
-  }'
-```
-
-### List agents
-
-```bash
-curl http://127.0.0.1:8090/api/agents
-```
-
-### Query agent health through the controller
-
-```bash
-curl http://127.0.0.1:8090/api/agents/agent-0001/health
-```
-
-### Query interfaces through the controller
-
-```bash
-curl http://127.0.0.1:8090/api/agents/agent-0001/interfaces
-```
-
-### Start a remote capture through the controller
-
-```bash
-curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures \
-  -H "Content-Type: application/json" \
-  -d '{
-    "interface_name": "YOUR_INTERFACE",
-    "duration_seconds": 10
-  }'
-```
-
-### Clear all stored agents
-
-```bash
-curl -X DELETE http://127.0.0.1:8090/api/agents
-```
+The demo uses one controller VM and two agent VMs on `192.168.56.0/24`, then walks through manual agent registration, health checks, capture creation, controller-side PCAP persistence, analysis, packet inspection, offline-safe viewing, and stored capture deletion.
 
 ---
 
-## Development direction
+## Design Principles
 
-Planned next steps:
-
-1. add a controller-side web interface
-2. implement local discovery of agents
-3. add PCAP download support
-4. extend persistence beyond known-agent registry if needed
-
----
-
-## Design principles
-
-- keep the sniffer independent from HTTP concerns
-- keep the agent independent from controller internals
+- keep packet capture independent from HTTP concerns
+- keep agent internals independent from controller internals
 - communicate between services using HTTP/JSON
-- preserve modular boundaries so transport, storage, and capture backends can be replaced later
-- build the controller as a backend-first service so a web UI can be layered on top cleanly
+- keep controller storage readable and inspectable through JSON sidecar files
+- preserve offline access to controller-stored captures
+- avoid heavy frontend charting dependencies when CSS tables and bars are sufficient
+- keep the system understandable for diploma demonstration and evaluation
 
 ---
 
 ## Notes
 
-- Packet capture typically requires elevated privileges, so `agent_server` and `packet_sniffer` may need to be run with `sudo`.
-- The controller persists known agents to `data/known_agents.json` and reloads them on startup.
-- Captured `.pcap` files are currently stored locally by the agent under the `captures/` directory.
+- `agent_server` and `packet_sniffer` typically require `sudo`.
+- The controller can render stored captures even when an agent is offline.
+- Analysis is cached per stored PCAP and invalidated by PCAP file size or modification-time changes.
+- The frontend dev server is intended for the diploma/demo environment. A production deployment would serve the built frontend from a web server or from the controller.
 
 ---
 

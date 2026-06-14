@@ -209,18 +209,6 @@ Expected status:
 ## 2.6 Agent health through controller
 
 ```bash
-curl -X DELETE http://127.0.0.1:8090/api/agents/agent-0001
-```
-
-Expected status:
-- `200 OK`
-- `404 Not Found`
-
----
-
-## 2.7 Agent health through controller
-
-```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/health
 ```
 
@@ -231,7 +219,7 @@ Expected status:
 
 ---
 
-## 2.8 Agent interfaces through controller
+## 2.7 Agent interfaces through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/interfaces
@@ -244,7 +232,7 @@ Expected status:
 
 ---
 
-## 2.9 Start remote capture through controller
+## 2.8 Start remote capture through controller
 
 Replace `YOUR_INTERFACE` with a real interface name from the selected agent.
 
@@ -279,7 +267,7 @@ curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures \
 
 ---
 
-## 2.10 List captures through controller
+## 2.9 List captures through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/captures
@@ -292,7 +280,7 @@ Expected status:
 
 ---
 
-## 2.11 Get one capture through controller
+## 2.10 Get one capture through controller
 
 ```bash
 curl http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID
@@ -305,7 +293,7 @@ Expected status:
 
 ---
 
-## 2.12 Stop one capture through controller
+## 2.11 Stop one capture through controller
 
 ```bash
 curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/stop
@@ -316,6 +304,124 @@ Expected status:
 - `404 Not Found`
 - `409 Conflict`
 - `502 Bad Gateway`
+
+---
+
+## 2.12 Download one capture through controller
+
+```bash
+curl -OJ http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/download
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+- `409 Conflict` if the capture file is not ready
+- `502 Bad Gateway`
+
+---
+
+## 2.13 Fetch one capture to controller storage
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/fetch
+```
+
+Expected status:
+- `201 Created`
+- `404 Not Found`
+- `409 Conflict` if the capture file is not ready
+- `502 Bad Gateway`
+
+---
+
+## 2.14 List controller stored captures
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures
+```
+
+Expected status:
+- `200 OK`
+
+---
+
+## 2.15 Get one controller stored capture
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+---
+
+## 2.16 Download one controller stored capture
+
+```bash
+curl -OJ http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/download
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+---
+
+## 2.17 Analyze one controller stored capture
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/analysis
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+Notes:
+- Analysis is cached in `data/captures/<agent_id>/<capture_id>.analysis.json`.
+- Cache is reused only when PCAP file size and modification time match.
+
+---
+
+## 2.18 List packets from one controller stored capture
+
+```bash
+curl "http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/packets?offset=0&limit=50"
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+---
+
+## 2.19 Inspect one packet from a controller stored capture
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/packets/1
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+---
+
+## 2.20 Delete one controller stored capture
+
+```bash
+curl -X DELETE http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID
+```
+
+Expected status:
+- `200 OK`
+- `404 Not Found`
+
+Notes:
+- Deletion removes the controller-side `.pcap`, `.json`, and `.analysis.json` files for that capture.
 
 ---
 
@@ -378,7 +484,25 @@ curl http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID
 curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/stop
 ```
 
-## 3.8 Restart controller and confirm persistence
+## 3.8 Fetch completed capture to controller storage
+
+```bash
+curl -X POST http://127.0.0.1:8090/api/agents/agent-0001/captures/CAPTURE_ID/fetch
+```
+
+## 3.9 Analyze the stored capture
+
+```bash
+curl http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/analysis
+```
+
+## 3.10 Inspect packets from the stored capture
+
+```bash
+curl "http://127.0.0.1:8090/api/controller/captures/agent-0001/CAPTURE_ID/packets?offset=0&limit=20"
+```
+
+## 3.11 Restart controller and confirm persistence
 
 ```bash
 pkill controller_server
@@ -386,7 +510,7 @@ pkill controller_server
 curl http://127.0.0.1:8090/api/agents
 ```
 
-## 3.9 Clear all agents and persisted storage
+## 3.12 Clear all agents and persisted storage
 
 ```bash
 curl -X DELETE http://127.0.0.1:8090/api/agents
@@ -398,6 +522,7 @@ curl -X DELETE http://127.0.0.1:8090/api/agents
 
 - `agent_server` usually needs `sudo` because packet capture typically requires elevated privileges.
 - The controller persists known agents to `data/known_agents.json`.
-- `DELETE /api/agents` clears both in-memory registered agents and the persisted storage file.
-- The controller does not expose agent file paths directly for upload/download management yet.
+- The controller stores fetched captures under `data/captures/<agent_id>/`.
+- `DELETE /api/agents` clears registered agents and controller capture storage.
+- Stored captures can be downloaded, analyzed, inspected packet by packet, or deleted through the controller API.
 - For early manual testing, `curl` is enough. Swagger/OpenAPI can be added later once the API stabilizes further.
