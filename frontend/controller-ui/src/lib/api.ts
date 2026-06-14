@@ -237,6 +237,18 @@ export async function getControllerStoredCapture(
   );
 }
 
+export async function deleteControllerStoredCapture(
+  agentId: string,
+  captureId: string,
+): Promise<ControllerStoredCaptureResponse> {
+  return requestJson<ControllerStoredCaptureResponse>(
+    `/api/controller/captures/${agentId}/${captureId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export async function listControllerStoredCaptures(): Promise<ControllerStoredCaptureInfo[]> {
   const data = await requestJson<ControllerStoredCapturesResponse>(
     "/api/controller/captures",

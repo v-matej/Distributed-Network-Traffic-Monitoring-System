@@ -25,6 +25,7 @@ import { statusClass } from "../lib/agentUtils";
 import { formatBytes, formatDurationSeconds, formatUnixTime } from "../lib/format";
 
 import {
+  deleteControllerStoredCapture,
   getControllerStoredCaptureDownloadUrl,
   getAgent,
   getAgentHealth,
@@ -144,6 +145,8 @@ export function AgentDetailPage() {
   const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
   const [isStartingCapture, setIsStartingCapture] = useState(false);
   const [isLoadingCaptures, setIsLoadingCaptures] = useState(false);
+  const [isDeletingStoredCaptureKey, setIsDeletingStoredCaptureKey] =
+    useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [healthErrorMessage, setHealthErrorMessage] = useState<string | null>(
@@ -559,6 +562,40 @@ export function AgentDetailPage() {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to stop capture",
       );
+    }
+  }
+
+  async function handleDeleteStoredCapture(
+    storedCapture: ControllerStoredCaptureInfo,
+  ) {
+    if (!agentId) {
+      return;
+    }
+
+    const key = getStoredCaptureKey(storedCapture);
+
+    setIsDeletingStoredCaptureKey(key);
+    setErrorMessage(null);
+    setCaptureMessage(null);
+
+    try {
+      await deleteControllerStoredCapture(
+        storedCapture.agent_id,
+        storedCapture.capture_id,
+      );
+      setStoredCaptures((current) =>
+        current.filter((item) => getStoredCaptureKey(item) !== key),
+      );
+      setCaptureMessage(`Deleted stored capture ${storedCapture.capture_id}.`);
+      await loadCaptures({ silent: true });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete stored capture",
+      );
+    } finally {
+      setIsDeletingStoredCaptureKey(null);
     }
   }
 
@@ -1511,49 +1548,65 @@ export function AgentDetailPage() {
                   </thead>
 
                   <tbody>
-                    {storedCaptures.map((storedCapture) => (
-                      <tr key={storedCapture.capture_id}>
-                        <td>
-                          <code>{storedCapture.capture_id}</code>
-                        </td>
+                    {storedCaptures.map((storedCapture) => {
+                      const isDeleting =
+                        isDeletingStoredCaptureKey ===
+                        getStoredCaptureKey(storedCapture);
 
-                        <td>
-                          <span
-                            className={`status-badge ${
-                              storedCapture.exists
-                                ? "status-good"
-                                : "status-danger"
-                            }`}
-                          >
-                            {storedCapture.exists ? "stored" : "missing"}
-                          </span>
-                        </td>
+                      return (
+                        <tr key={storedCapture.capture_id}>
+                          <td>
+                            <code>{storedCapture.capture_id}</code>
+                          </td>
 
-                        <td>{formatBytes(storedCapture.file_size_bytes)}</td>
-                        <td>{formatUnixTime(storedCapture.fetched_at)}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${
+                                storedCapture.exists
+                                  ? "status-good"
+                                  : "status-danger"
+                              }`}
+                            >
+                              {storedCapture.exists ? "stored" : "missing"}
+                            </span>
+                          </td>
 
-                        <td className="table-actions">
-                          <Link
-                            className="small-button"
-                            to={`/captures/${agentId}/${storedCapture.capture_id}/packets`}
-                          >
-                            Packet view
-                            <IconArrowRight size={14} />
-                          </Link>
+                          <td>{formatBytes(storedCapture.file_size_bytes)}</td>
+                          <td>{formatUnixTime(storedCapture.fetched_at)}</td>
 
-                          <a
-                            className="small-button"
-                            href={getControllerStoredCaptureDownloadUrl(
-                              agentId,
-                              storedCapture.capture_id,
-                            )}
-                            download
-                          >
-                            Download
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="table-actions">
+                            <Link
+                              className="small-button"
+                              to={`/captures/${agentId}/${storedCapture.capture_id}/packets`}
+                            >
+                              Packet view
+                              <IconArrowRight size={14} />
+                            </Link>
+
+                            <a
+                              className="small-button"
+                              href={getControllerStoredCaptureDownloadUrl(
+                                agentId,
+                                storedCapture.capture_id,
+                              )}
+                              download
+                            >
+                              Download
+                            </a>
+
+                            <button
+                              className="small-button danger-text"
+                              disabled={isDeleting}
+                              onClick={() =>
+                                void handleDeleteStoredCapture(storedCapture)
+                              }
+                            >
+                              {isDeleting ? "Deleting..." : "Delete"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1774,4 +1827,8 @@ function getDisplayedElapsedSeconds(
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function getStoredCaptureKey(storedCapture: ControllerStoredCaptureInfo) {
+  return `${storedCapture.agent_id}:${storedCapture.capture_id}`;
 }

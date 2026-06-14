@@ -1,5 +1,6 @@
 #include "controller/ControllerService.hpp"
 
+#include "controller/ControllerJsonMapper.hpp"
 #include "controller/HttpAgentClient.hpp"
 #include "controller/PcapAnalyzer.hpp"
 
@@ -67,6 +68,15 @@ std::filesystem::path make_capture_metadata_path(
 ) {
     return make_agent_storage_directory(capture_storage_root, agent_id)
         / (sanitize_path_component(capture_id) + ".json");
+}
+
+std::filesystem::path make_capture_analysis_cache_path(
+    const std::string& capture_storage_root,
+    const std::string& agent_id,
+    const std::string& capture_id
+) {
+    return make_agent_storage_directory(capture_storage_root, agent_id)
+        / (sanitize_path_component(capture_id) + ".analysis.json");
 }
 
 std::time_t file_time_to_time_t(const std::filesystem::file_time_type& file_time) {
@@ -597,6 +607,116 @@ std::vector<RemoteCaptureSessionInfo> merge_live_and_stored_captures(
     return captures;
 }
 
+bool load_analysis_cache(
+    const std::filesystem::path& cache_path,
+    const ControllerStoredCaptureInfo& stored_capture,
+    PcapAnalysisResult& analysis
+) {
+    std::ifstream input(cache_path);
+    if (!input) {
+        return false;
+    }
+
+    json document;
+    try {
+        input >> document;
+    } catch (const std::exception&) {
+        return false;
+    }
+
+    if (!document.is_object()) {
+        return false;
+    }
+
+    if (!document.contains("agent_id") || !document["agent_id"].is_string()
+        || !document.contains("capture_id") || !document["capture_id"].is_string()
+        || !document.contains("pcap_file_size_bytes")
+        || !(document["pcap_file_size_bytes"].is_number_unsigned()
+             || document["pcap_file_size_bytes"].is_number_integer())
+        || !document.contains("pcap_modified_at")
+        || !document["pcap_modified_at"].is_number_integer()
+        || !document.contains("response")) {
+        return false;
+    }
+
+    if (document["agent_id"].get<std::string>() != stored_capture.agent_id
+        || document["capture_id"].get<std::string>() != stored_capture.capture_id
+        || document["pcap_file_size_bytes"].get<std::uint64_t>() != stored_capture.file_size_bytes
+        || static_cast<std::time_t>(document["pcap_modified_at"].get<long long>())
+            != stored_capture.fetched_at) {
+        return false;
+    }
+
+    std::string parse_error;
+    if (!parse_pcap_analysis_json(document["response"].dump(), analysis, parse_error)) {
+        return false;
+    }
+
+    return analysis.agent_id == stored_capture.agent_id
+        && analysis.capture_id == stored_capture.capture_id;
+}
+
+bool save_analysis_cache(
+    const std::filesystem::path& cache_path,
+    const ControllerStoredCaptureInfo& stored_capture,
+    const PcapAnalysisResult& analysis,
+    std::string& error_message
+) {
+    std::error_code filesystem_error;
+    std::filesystem::create_directories(cache_path.parent_path(), filesystem_error);
+    if (filesystem_error) {
+        error_message =
+            "Failed to create analysis cache directory: "
+            + filesystem_error.message();
+        return false;
+    }
+
+    json response_document;
+    try {
+        response_document = json::parse(to_json(analysis));
+    } catch (const std::exception& ex) {
+        error_message = std::string("Failed to serialize analysis cache: ") + ex.what();
+        return false;
+    }
+
+    json document;
+    document["schema_version"] = 1;
+    document["agent_id"] = stored_capture.agent_id;
+    document["capture_id"] = stored_capture.capture_id;
+    document["pcap_file_size_bytes"] = stored_capture.file_size_bytes;
+    document["pcap_modified_at"] = stored_capture.fetched_at;
+    document["response"] = std::move(response_document);
+
+    const auto temporary_path = cache_path.string() + ".tmp";
+
+    std::ofstream output(temporary_path, std::ios::trunc);
+    if (!output) {
+        error_message = "Failed to open temporary analysis cache file for writing";
+        return false;
+    }
+
+    output << document.dump(4);
+    output.close();
+
+    if (!output) {
+        error_message = "Failed to write analysis cache";
+        return false;
+    }
+
+    std::filesystem::remove(cache_path, filesystem_error);
+    filesystem_error.clear();
+
+    std::filesystem::rename(temporary_path, cache_path, filesystem_error);
+    if (filesystem_error) {
+        std::filesystem::remove(temporary_path);
+        error_message = "Failed to finalize analysis cache file: "
+            + filesystem_error.message();
+        return false;
+    }
+
+    return true;
+}
+
 bool remove_path_if_exists(
     const std::filesystem::path& path,
     std::string& error_message
@@ -1088,6 +1208,38 @@ bool ControllerService::read_controller_capture_content(
     return true;
 }
 
+bool ControllerService::delete_controller_capture(
+    const std::string& agent_id,
+    const std::string& capture_id,
+    ControllerStoredCaptureInfo& removed_capture,
+    std::string& error_message
+) const {
+    if (!get_controller_capture(agent_id, capture_id, removed_capture, error_message)) {
+        return false;
+    }
+
+    const auto metadata_path =
+        make_capture_metadata_path(capture_storage_root_, agent_id, capture_id);
+    const auto cache_path =
+        make_capture_analysis_cache_path(capture_storage_root_, agent_id, capture_id);
+    const auto pcap_path =
+        make_capture_storage_path(capture_storage_root_, agent_id, capture_id);
+
+    if (!remove_path_if_exists(metadata_path, error_message)) {
+        return false;
+    }
+
+    if (!remove_path_if_exists(cache_path, error_message)) {
+        return false;
+    }
+
+    if (!remove_path_if_exists(pcap_path, error_message)) {
+        return false;
+    }
+
+    return true;
+}
+
 bool ControllerService::analyze_controller_capture(
     const std::string& agent_id,
     const std::string& capture_id,
@@ -1100,7 +1252,18 @@ bool ControllerService::analyze_controller_capture(
         return false;
     }
 
-    return PcapAnalyzer::analyze(stored_capture, analysis, error_message);
+    const auto cache_path =
+        make_capture_analysis_cache_path(capture_storage_root_, agent_id, capture_id);
+
+    if (load_analysis_cache(cache_path, stored_capture, analysis)) {
+        return true;
+    }
+
+    if (!PcapAnalyzer::analyze(stored_capture, analysis, error_message)) {
+        return false;
+    }
+
+    return save_analysis_cache(cache_path, stored_capture, analysis, error_message);
 }
 
 AgentEndpoint ControllerService::endpoint_from_agent(const KnownAgent& agent) const {

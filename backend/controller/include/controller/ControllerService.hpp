@@ -108,6 +108,13 @@ public:
         std::string& error_message
     ) const;
 
+    bool delete_controller_capture(
+        const std::string& agent_id,
+        const std::string& capture_id,
+        ControllerStoredCaptureInfo& removed_capture,
+        std::string& error_message
+    ) const;
+
     bool analyze_controller_capture(
         const std::string& agent_id,
         const std::string& capture_id,

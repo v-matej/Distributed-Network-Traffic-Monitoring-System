@@ -43,6 +43,66 @@ bool parse_unsigned_counter_field(
     return true;
 }
 
+bool parse_string_field(
+    const json& j,
+    const char* field_name,
+    std::string& value,
+    std::string& error_message
+) {
+    if (!j.contains(field_name) || !j[field_name].is_string()) {
+        error_message = std::string("Missing or invalid '") + field_name + "'";
+        return false;
+    }
+
+    value = j[field_name].get<std::string>();
+    return true;
+}
+
+bool parse_bool_field(
+    const json& j,
+    const char* field_name,
+    bool& value,
+    std::string& error_message
+) {
+    if (!j.contains(field_name) || !j[field_name].is_boolean()) {
+        error_message = std::string("Missing or invalid '") + field_name + "'";
+        return false;
+    }
+
+    value = j[field_name].get<bool>();
+    return true;
+}
+
+bool parse_int_field(
+    const json& j,
+    const char* field_name,
+    int& value,
+    std::string& error_message
+) {
+    if (!j.contains(field_name) || !j[field_name].is_number_integer()) {
+        error_message = std::string("Missing or invalid '") + field_name + "'";
+        return false;
+    }
+
+    value = j[field_name].get<int>();
+    return true;
+}
+
+bool parse_double_field(
+    const json& j,
+    const char* field_name,
+    double& value,
+    std::string& error_message
+) {
+    if (!j.contains(field_name) || !j[field_name].is_number()) {
+        error_message = std::string("Missing or invalid '") + field_name + "'";
+        return false;
+    }
+
+    value = j[field_name].get<double>();
+    return true;
+}
+
 json agent_to_json_value(const KnownAgent& agent) {
     json j;
     j["agent_id"] = agent.agent_id;
@@ -418,6 +478,300 @@ json conversation_analysis_vector_to_json_value(
     return j;
 }
 
+bool parse_analysis_counter_json(
+    const json& j,
+    PcapAnalysisCounter& counter,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid analysis counter entry";
+        return false;
+    }
+
+    return parse_string_field(j, "key", counter.key, error_message)
+        && parse_unsigned_counter_field(j, "packets", counter.packets, error_message)
+        && parse_unsigned_counter_field(j, "bytes", counter.bytes, error_message);
+}
+
+bool parse_analysis_counter_vector_json(
+    const json& j,
+    std::vector<PcapAnalysisCounter>& counters,
+    std::string& error_message
+) {
+    if (!j.is_array()) {
+        error_message = "Invalid analysis counter array";
+        return false;
+    }
+
+    counters.clear();
+    for (const auto& item : j) {
+        PcapAnalysisCounter counter;
+        if (!parse_analysis_counter_json(item, counter, error_message)) {
+            return false;
+        }
+        counters.push_back(std::move(counter));
+    }
+
+    return true;
+}
+
+bool parse_protocol_counters_json(
+    const json& j,
+    PcapProtocolCounters& protocols,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid protocol counters object";
+        return false;
+    }
+
+    return parse_unsigned_counter_field(j, "ethernet", protocols.ethernet, error_message)
+        && parse_unsigned_counter_field(j, "arp", protocols.arp, error_message)
+        && parse_unsigned_counter_field(j, "ipv4", protocols.ipv4, error_message)
+        && parse_unsigned_counter_field(j, "ipv6", protocols.ipv6, error_message)
+        && parse_unsigned_counter_field(j, "tcp", protocols.tcp, error_message)
+        && parse_unsigned_counter_field(j, "udp", protocols.udp, error_message)
+        && parse_unsigned_counter_field(j, "icmp", protocols.icmp, error_message)
+        && parse_unsigned_counter_field(j, "icmpv6", protocols.icmpv6, error_message)
+        && parse_unsigned_counter_field(j, "other_l3", protocols.other_l3, error_message)
+        && parse_unsigned_counter_field(j, "other_l4", protocols.other_l4, error_message);
+}
+
+bool parse_analysis_summary_json(
+    const json& j,
+    PcapAnalysisSummary& summary,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid analysis summary object";
+        return false;
+    }
+
+    return parse_double_field(j, "average_packet_size_bytes", summary.average_packet_size_bytes, error_message)
+        && parse_string_field(j, "main_protocol", summary.main_protocol, error_message)
+        && parse_string_field(j, "main_service", summary.main_service, error_message)
+        && parse_bool_field(j, "external_traffic_detected", summary.external_traffic_detected, error_message)
+        && parse_bool_field(j, "dns_traffic_detected", summary.dns_traffic_detected, error_message);
+}
+
+bool parse_protocol_distribution_json(
+    const json& j,
+    std::vector<PcapProtocolDistributionEntry>& distribution,
+    std::string& error_message
+) {
+    if (!j.is_array()) {
+        error_message = "Invalid protocol distribution array";
+        return false;
+    }
+
+    distribution.clear();
+    for (const auto& item : j) {
+        if (!item.is_object()) {
+            error_message = "Invalid protocol distribution entry";
+            return false;
+        }
+
+        PcapProtocolDistributionEntry entry;
+        if (!parse_string_field(item, "name", entry.name, error_message)
+            || !parse_unsigned_counter_field(item, "packets", entry.packets, error_message)
+            || !parse_unsigned_counter_field(item, "bytes", entry.bytes, error_message)
+            || !parse_double_field(item, "percentage", entry.percentage, error_message)) {
+            return false;
+        }
+
+        distribution.push_back(std::move(entry));
+    }
+
+    return true;
+}
+
+bool parse_destination_ip_analysis_json(
+    const json& j,
+    PcapDestinationIpAnalysis& destination,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid destination IP analysis entry";
+        return false;
+    }
+
+    return parse_string_field(j, "ip_address", destination.ip_address, error_message)
+        && parse_string_field(j, "classification", destination.classification, error_message)
+        && parse_string_field(j, "country_code", destination.country_code, error_message)
+        && parse_string_field(j, "country_name", destination.country_name, error_message)
+        && parse_unsigned_counter_field(j, "packets", destination.packets, error_message)
+        && parse_unsigned_counter_field(j, "bytes", destination.bytes, error_message);
+}
+
+bool parse_destination_ip_analysis_vector_json(
+    const json& j,
+    std::vector<PcapDestinationIpAnalysis>& destinations,
+    std::string& error_message
+) {
+    if (!j.is_array()) {
+        error_message = "Invalid destination IP analysis array";
+        return false;
+    }
+
+    destinations.clear();
+    for (const auto& item : j) {
+        PcapDestinationIpAnalysis destination;
+        if (!parse_destination_ip_analysis_json(item, destination, error_message)) {
+            return false;
+        }
+        destinations.push_back(std::move(destination));
+    }
+
+    return true;
+}
+
+bool parse_service_analysis_json(
+    const json& j,
+    PcapServiceAnalysis& service,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid service analysis entry";
+        return false;
+    }
+
+    return parse_string_field(j, "service_name", service.service_name, error_message)
+        && parse_string_field(j, "transport_protocol", service.transport_protocol, error_message)
+        && parse_int_field(j, "port", service.port, error_message)
+        && parse_unsigned_counter_field(j, "packets", service.packets, error_message)
+        && parse_unsigned_counter_field(j, "bytes", service.bytes, error_message);
+}
+
+bool parse_service_analysis_vector_json(
+    const json& j,
+    std::vector<PcapServiceAnalysis>& services,
+    std::string& error_message
+) {
+    if (!j.is_array()) {
+        error_message = "Invalid service analysis array";
+        return false;
+    }
+
+    services.clear();
+    for (const auto& item : j) {
+        PcapServiceAnalysis service;
+        if (!parse_service_analysis_json(item, service, error_message)) {
+            return false;
+        }
+        services.push_back(std::move(service));
+    }
+
+    return true;
+}
+
+bool parse_conversation_analysis_json(
+    const json& j,
+    PcapConversationAnalysis& conversation,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid conversation analysis entry";
+        return false;
+    }
+
+    return parse_string_field(j, "source_ip", conversation.source_ip, error_message)
+        && parse_string_field(j, "destination_ip", conversation.destination_ip, error_message)
+        && parse_string_field(j, "destination_classification", conversation.destination_classification, error_message)
+        && parse_string_field(j, "destination_country_code", conversation.destination_country_code, error_message)
+        && parse_string_field(j, "destination_country_name", conversation.destination_country_name, error_message)
+        && parse_string_field(j, "transport_protocol", conversation.transport_protocol, error_message)
+        && parse_string_field(j, "service_name", conversation.service_name, error_message)
+        && parse_int_field(j, "service_port", conversation.service_port, error_message)
+        && parse_unsigned_counter_field(j, "packets", conversation.packets, error_message)
+        && parse_unsigned_counter_field(j, "bytes", conversation.bytes, error_message);
+}
+
+bool parse_conversation_analysis_vector_json(
+    const json& j,
+    std::vector<PcapConversationAnalysis>& conversations,
+    std::string& error_message
+) {
+    if (!j.is_array()) {
+        error_message = "Invalid conversation analysis array";
+        return false;
+    }
+
+    conversations.clear();
+    for (const auto& item : j) {
+        PcapConversationAnalysis conversation;
+        if (!parse_conversation_analysis_json(item, conversation, error_message)) {
+            return false;
+        }
+        conversations.push_back(std::move(conversation));
+    }
+
+    return true;
+}
+
+bool parse_pcap_analysis_value_json(
+    const json& j,
+    PcapAnalysisResult& analysis,
+    std::string& error_message
+) {
+    if (!j.is_object()) {
+        error_message = "Invalid analysis object";
+        return false;
+    }
+
+    if (!parse_string_field(j, "agent_id", analysis.agent_id, error_message)
+        || !parse_string_field(j, "capture_id", analysis.capture_id, error_message)
+        || !parse_string_field(j, "local_path", analysis.local_path, error_message)
+        || !parse_string_field(j, "datalink_name", analysis.datalink_name, error_message)
+        || !parse_unsigned_counter_field(j, "file_size_bytes", analysis.file_size_bytes, error_message)
+        || !parse_unsigned_counter_field(j, "packet_count", analysis.packet_count, error_message)
+        || !parse_unsigned_counter_field(j, "byte_count", analysis.byte_count, error_message)
+        || !parse_time_field(j, "analyzed_at", analysis.analyzed_at, error_message)
+        || !parse_time_field(j, "first_packet_time", analysis.first_packet_time, error_message)
+        || !parse_time_field(j, "last_packet_time", analysis.last_packet_time, error_message)
+        || !parse_double_field(j, "duration_seconds", analysis.duration_seconds, error_message)) {
+        return false;
+    }
+
+    if (!j.contains("protocols") ||
+        !parse_protocol_counters_json(j["protocols"], analysis.protocols, error_message)) {
+        return false;
+    }
+
+    if (j.contains("summary") &&
+        !parse_analysis_summary_json(j["summary"], analysis.summary, error_message)) {
+        return false;
+    }
+
+    if (j.contains("protocol_distribution") &&
+        !parse_protocol_distribution_json(j["protocol_distribution"], analysis.protocol_distribution, error_message)) {
+        return false;
+    }
+
+    if (j.contains("top_conversations") &&
+        !parse_conversation_analysis_vector_json(j["top_conversations"], analysis.top_conversations, error_message)) {
+        return false;
+    }
+
+    if (j.contains("top_destination_services") &&
+        !parse_service_analysis_vector_json(j["top_destination_services"], analysis.top_destination_services, error_message)) {
+        return false;
+    }
+
+    if (j.contains("top_destination_ip_details") &&
+        !parse_destination_ip_analysis_vector_json(j["top_destination_ip_details"], analysis.top_destination_ip_details, error_message)) {
+        return false;
+    }
+
+    return j.contains("top_source_ips")
+        && parse_analysis_counter_vector_json(j["top_source_ips"], analysis.top_source_ips, error_message)
+        && j.contains("top_destination_ips")
+        && parse_analysis_counter_vector_json(j["top_destination_ips"], analysis.top_destination_ips, error_message)
+        && j.contains("top_source_ports")
+        && parse_analysis_counter_vector_json(j["top_source_ports"], analysis.top_source_ports, error_message)
+        && j.contains("top_destination_ports")
+        && parse_analysis_counter_vector_json(j["top_destination_ports"], analysis.top_destination_ports, error_message);
+}
+
 json pcap_analysis_to_json_value(const PcapAnalysisResult& analysis) {
     json j;
     j["agent_id"] = analysis.agent_id;
@@ -526,6 +880,26 @@ std::string to_json(const PcapAnalysisResult& analysis) {
     json j;
     j["analysis"] = pcap_analysis_to_json_value(analysis);
     return j.dump(4);
+}
+
+bool parse_pcap_analysis_json(
+    const std::string& response_body,
+    PcapAnalysisResult& analysis,
+    std::string& error_message
+) {
+    try {
+        const json j = json::parse(response_body);
+
+        if (!j.contains("analysis")) {
+            error_message = "Missing analysis object";
+            return false;
+        }
+
+        return parse_pcap_analysis_value_json(j["analysis"], analysis, error_message);
+    } catch (const std::exception& ex) {
+        error_message = std::string("Invalid analysis JSON: ") + ex.what();
+        return false;
+    }
 }
 
 bool parse_add_agent_request_json(

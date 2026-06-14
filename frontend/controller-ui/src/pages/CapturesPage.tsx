@@ -11,9 +11,20 @@ import {
 
 import { formatBytes, formatUnixTime } from "../lib/format";
 
-import { listAgents, listAgentCaptures, stopAgentCapture } from "../lib/api";
+import {
+  deleteControllerStoredCapture,
+  getControllerStoredCaptureDownloadUrl,
+  listAgents,
+  listAgentCaptures,
+  listControllerStoredCaptures,
+  stopAgentCapture,
+} from "../lib/api";
 
-import type { KnownAgent, RemoteCaptureSessionInfo } from "../lib/api";
+import type {
+  ControllerStoredCaptureInfo,
+  KnownAgent,
+  RemoteCaptureSessionInfo,
+} from "../lib/api";
 
 type GlobalCaptureRow = {
   agent: KnownAgent;
@@ -30,6 +41,9 @@ type StatusFilter = "all" | "active" | "completed" | "failed";
 export function CapturesPage() {
   const [agents, setAgents] = useState<KnownAgent[]>([]);
   const [captures, setCaptures] = useState<GlobalCaptureRow[]>([]);
+  const [storedCaptures, setStoredCaptures] = useState<
+    ControllerStoredCaptureInfo[]
+  >([]);
   const [loadErrors, setLoadErrors] = useState<AgentCaptureLoadError[]>([]);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -38,6 +52,8 @@ export function CapturesPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isStoppingKey, setIsStoppingKey] = useState<string | null>(null);
+  const [isDeletingStoredCaptureKey, setIsDeletingStoredCaptureKey] =
+    useState<string | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -48,6 +64,11 @@ export function CapturesPage() {
     isCompletedCapture(row.capture),
   );
   const failedCaptures = captures.filter((row) => isFailedCapture(row.capture));
+
+  const agentById = useMemo(
+    () => new Map(agents.map((agent) => [agent.agent_id, agent])),
+    [agents],
+  );
 
   const filteredCaptures = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
@@ -99,7 +120,10 @@ export function CapturesPage() {
     }
 
     try {
-      const agentList = await listAgents();
+      const [agentList, storedCaptureList] = await Promise.all([
+        listAgents(),
+        listControllerStoredCaptures(),
+      ]);
       const captureRows: GlobalCaptureRow[] = [];
       const errors: AgentCaptureLoadError[] = [];
 
@@ -129,6 +153,7 @@ export function CapturesPage() {
 
       setAgents(agentList);
       setCaptures(captureRows);
+      setStoredCaptures(storedCaptureList);
       setLoadErrors(errors);
       setLastLoadedAt(new Date());
     } catch (error) {
@@ -161,6 +186,36 @@ export function CapturesPage() {
       );
     } finally {
       setIsStoppingKey(null);
+    }
+  }
+
+  async function handleDeleteStoredCapture(
+    storedCapture: ControllerStoredCaptureInfo,
+  ) {
+    const key = getStoredCaptureKey(storedCapture);
+
+    setIsDeletingStoredCaptureKey(key);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      await deleteControllerStoredCapture(
+        storedCapture.agent_id,
+        storedCapture.capture_id,
+      );
+      setStoredCaptures((current) =>
+        current.filter((item) => getStoredCaptureKey(item) !== key),
+      );
+      setSuccessMessage(`Deleted stored capture ${storedCapture.capture_id}.`);
+      await loadGlobalCaptures({ silent: true });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete stored capture",
+      );
+    } finally {
+      setIsDeletingStoredCaptureKey(null);
     }
   }
 
@@ -225,6 +280,12 @@ export function CapturesPage() {
           <span className="metric-label">Total captures</span>
           <strong>{captures.length}</strong>
           <p>All known sessions from all agents.</p>
+        </div>
+
+        <div className="metric-card">
+          <span className="metric-label">Stored captures</span>
+          <strong>{storedCaptures.length}</strong>
+          <p>PCAP files persisted on controller storage.</p>
         </div>
 
         <div className="metric-card">
@@ -437,10 +498,127 @@ export function CapturesPage() {
           </div>
         )}
       </section>
+
+      <section className="page-card">
+        <div className="section-heading">
+          <div>
+            <h3>Controller stored captures</h3>
+            <p>
+              {storedCaptures.length} persisted PCAP
+              {storedCaptures.length === 1 ? "" : "s"} available from
+              controller storage.
+            </p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="empty-state">
+            <h3>Loading stored captures...</h3>
+            <p>Reading persisted PCAP files from controller storage.</p>
+          </div>
+        ) : storedCaptures.length === 0 ? (
+          <div className="empty-state">
+            <h3>No stored captures found</h3>
+            <p>Fetch a completed PCAP to the controller before deleting it here.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Capture ID</th>
+                  <th>Status</th>
+                  <th>Size</th>
+                  <th>Fetched</th>
+                  <th />
+                </tr>
+              </thead>
+
+              <tbody>
+                {storedCaptures.map((storedCapture) => {
+                  const key = getStoredCaptureKey(storedCapture);
+                  const isDeleting = key === isDeletingStoredCaptureKey;
+                  const storedAgent = agentById.get(storedCapture.agent_id);
+
+                  return (
+                    <tr key={key}>
+                      <td>
+                        <div className="table-main-text">
+                          {storedAgent?.display_name ||
+                            storedCapture.agent_id}
+                        </div>
+                        <div className="table-sub-text">
+                          {storedAgent
+                            ? `${storedAgent.host}:${storedAgent.port}`
+                            : "agent metadata unavailable"}
+                        </div>
+                      </td>
+
+                      <td>
+                        <code>{storedCapture.capture_id}</code>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            storedCapture.exists
+                              ? "status-good"
+                              : "status-danger"
+                          }`}
+                        >
+                          {storedCapture.exists ? "stored" : "missing"}
+                        </span>
+                      </td>
+
+                      <td>{formatBytes(storedCapture.file_size_bytes)}</td>
+                      <td>{formatUnixTime(storedCapture.fetched_at)}</td>
+
+                      <td className="table-actions">
+                        <Link
+                          className="small-button"
+                          to={`/captures/${storedCapture.agent_id}/${storedCapture.capture_id}`}
+                        >
+                          Open
+                        </Link>
+
+                        <a
+                          className="small-button"
+                          href={getControllerStoredCaptureDownloadUrl(
+                            storedCapture.agent_id,
+                            storedCapture.capture_id,
+                          )}
+                          download
+                        >
+                          Download
+                        </a>
+
+                        <button
+                          className="small-button danger-text"
+                          disabled={isDeleting}
+                          onClick={() =>
+                            void handleDeleteStoredCapture(storedCapture)
+                          }
+                        >
+                          {isDeleting ? "Deleting..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
 function getCaptureKey(row: GlobalCaptureRow) {
   return `${row.agent.agent_id}:${row.capture.capture_id}`;
+}
+
+function getStoredCaptureKey(storedCapture: ControllerStoredCaptureInfo) {
+  return `${storedCapture.agent_id}:${storedCapture.capture_id}`;
 }
