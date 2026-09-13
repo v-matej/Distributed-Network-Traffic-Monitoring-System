@@ -424,9 +424,36 @@ export async function listControllerStoredCapturePackets(
   captureId: string,
   offset = 0,
   limit = 200,
+  filterExpression = "",
 ): Promise<PcapPacketListResponse> {
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "offset",
+    String(offset),
+  );
+
+  params.set(
+    "limit",
+    String(limit),
+  );
+
+  const normalizedFilter =
+    filterExpression.trim();
+
+  if (
+    normalizedFilter.length >
+    0
+  ) {
+    params.set(
+      "filter",
+      normalizedFilter,
+    );
+  }
+
   return requestJson<PcapPacketListResponse>(
-    `/api/controller/captures/${agentId}/${captureId}/packets?offset=${offset}&limit=${limit}`,
+    `/api/controller/captures/${agentId}/${captureId}/packets?${params.toString()}`,
   );
 }
 

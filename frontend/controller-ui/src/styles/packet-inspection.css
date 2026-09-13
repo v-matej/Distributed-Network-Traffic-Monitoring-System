@@ -587,3 +587,655 @@ html[data-theme="light"] .packet-analysis-page *::-webkit-scrollbar-thumb {
     grid-template-columns: 50px minmax(290px, 1fr) 110px;
   }
 }
+
+/* =========================================================
+   Packet display filter builder
+   ========================================================= */
+
+.packet-filter-builder {
+  border: 1px solid rgba(122, 170, 144, 0.22);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 255, 136, 0.035),
+      transparent 48%
+    ),
+    rgba(8, 12, 16, 0.72);
+
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 136, 0.025),
+    0 10px 28px rgba(0, 0, 0, 0.2);
+
+  overflow: hidden;
+}
+
+.packet-filter-builder-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 13px 14px;
+
+  border-bottom:
+    1px solid
+    rgba(122, 170, 144, 0.16);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 255, 136, 0.05),
+      transparent
+    ),
+    rgba(13, 19, 24, 0.52);
+}
+
+.packet-filter-builder-heading h3 {
+  margin: 2px 0 0;
+
+  color: var(--text);
+
+  font-size: 15px;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.packet-filter-builder-heading p {
+  margin: 4px 0 0;
+
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.packet-filter-eyebrow {
+  display: block;
+
+  color: var(--accent);
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.packet-filter-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 26px;
+
+  border:
+    1px solid
+    rgba(122, 170, 144, 0.25);
+
+  background:
+    rgba(122, 170, 144, 0.055);
+
+  color: var(--dim);
+
+  padding: 3px 9px;
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 10px;
+
+  white-space: nowrap;
+}
+
+.packet-filter-status.active {
+  border-color:
+    rgba(0, 255, 136, 0.32);
+
+  background:
+    rgba(0, 255, 136, 0.075);
+
+  color: var(--accent);
+}
+
+.packet-filter-sections {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  padding: 12px;
+}
+
+.packet-filter-section,
+.packet-filter-field-card,
+.packet-filter-advanced {
+  border:
+    1px solid
+    rgba(122, 170, 144, 0.16);
+
+  background:
+    rgba(13, 19, 24, 0.42);
+
+  padding: 11px;
+}
+
+.packet-filter-section-heading,
+.packet-filter-field-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 10px;
+}
+
+.packet-filter-section-heading h4,
+.packet-filter-field-heading h4 {
+  margin: 0;
+
+  color: var(--text);
+
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.packet-filter-section-heading p,
+.packet-filter-field-heading p {
+  margin: 3px 0 0;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.packet-filter-join,
+.packet-filter-direction {
+  display: inline-flex;
+
+  border:
+    1px solid
+    rgba(122, 170, 144, 0.19);
+
+  background:
+    rgba(8, 12, 16, 0.52);
+
+  padding: 2px;
+
+  gap: 2px;
+}
+
+.packet-filter-join button,
+.packet-filter-direction button {
+  border: 0;
+
+  background: transparent;
+
+  color: var(--dim);
+
+  padding: 4px 7px;
+
+  cursor: pointer;
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.packet-filter-join button:hover,
+.packet-filter-direction button:hover {
+  color: var(--text);
+
+  background:
+    rgba(0, 229, 255, 0.05);
+}
+
+.packet-filter-join button.active,
+.packet-filter-direction button.active {
+  background:
+    rgba(0, 229, 255, 0.1);
+
+  color: var(--accent-cyan);
+}
+
+.packet-filter-fields {
+  grid-column:
+    1 / -1;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+.packet-filter-direction {
+  margin-bottom: 8px;
+}
+
+.packet-filter-input {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  border:
+    1px solid
+    var(--border);
+
+  background:
+    rgba(8, 12, 16, 0.76);
+
+  color: var(--text);
+
+  padding: 8px 9px;
+
+  outline: none;
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 11px;
+}
+
+.packet-filter-input:focus {
+  border-color:
+    rgba(0, 229, 255, 0.55);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(0, 229, 255, 0.1);
+}
+
+.packet-filter-input::placeholder {
+  color: var(--dim);
+}
+
+.packet-filter-advanced {
+  grid-column:
+    1 / -1;
+
+  padding: 0;
+}
+
+.packet-filter-advanced summary {
+  cursor: pointer;
+
+  list-style: none;
+
+  color: var(--accent-cyan);
+
+  padding: 10px 11px;
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.packet-filter-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.packet-filter-advanced summary::after {
+  content: "+";
+
+  float: right;
+
+  color: var(--accent);
+}
+
+.packet-filter-advanced[open] summary::after {
+  content: "−";
+}
+
+.packet-filter-advanced-body {
+  border-top:
+    1px solid
+    rgba(122, 170, 144, 0.14);
+
+  padding: 10px 11px;
+}
+
+.packet-filter-advanced-body p {
+  margin:
+    0 0 8px;
+
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.packet-filter-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  border-top:
+    1px solid
+    rgba(122, 170, 144, 0.16);
+
+  padding: 11px 12px;
+
+  background:
+    rgba(5, 9, 12, 0.46);
+}
+
+.packet-filter-preview-content {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.packet-filter-preview-content span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: var(--dim);
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.packet-filter-preview-content code {
+  display: block;
+
+  max-width: 100%;
+
+  color: var(--accent);
+
+  font-size: 11px;
+
+  overflow-wrap: anywhere;
+}
+
+.packet-filter-preview-actions {
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  flex-shrink: 0;
+}
+
+.packet-filter-pending {
+  color: var(--warning);
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  margin-right: 4px;
+}
+
+.packet-active-filter {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 10px;
+
+  border-top:
+    1px solid
+    rgba(0, 255, 136, 0.12);
+
+  background:
+    rgba(0, 255, 136, 0.035);
+
+  padding: 8px 12px;
+}
+
+.packet-active-filter span {
+  flex-shrink: 0;
+
+  color: var(--dim);
+
+  font-family:
+    "Share Tech Mono",
+    ui-monospace,
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.packet-active-filter code {
+  color: var(--accent);
+
+  font-size: 10px;
+
+  overflow-wrap: anywhere;
+}
+
+/* Extra states for existing compact filter buttons */
+
+.compact-filter-button.protocol-tcp.active {
+  border-color:
+    rgba(0, 255, 136, 0.55);
+}
+
+.compact-filter-button.protocol-udp.active {
+  border-color:
+    rgba(0, 229, 255, 0.55);
+}
+
+.compact-filter-button.protocol-icmp.active,
+.compact-filter-button.protocol-arp.active {
+  border-color:
+    rgba(255, 170, 0, 0.55);
+}
+
+.compact-filter-button.preset-dns.active,
+.compact-filter-button.preset-http.active,
+.compact-filter-button.preset-https.active,
+.compact-filter-button.preset-ssh.active,
+.compact-filter-button.preset-dhcp.active,
+.compact-filter-button.preset-ntp.active,
+.compact-filter-button.preset-mdns.active,
+.compact-filter-button.preset-ping.active {
+  border-color:
+    rgba(0, 229, 255, 0.48);
+}
+
+/* =========================================================
+   Light theme
+   ========================================================= */
+
+html[data-theme="light"]
+  .packet-filter-builder,
+html[data-theme="light"]
+  .packet-filter-section,
+html[data-theme="light"]
+  .packet-filter-field-card,
+html[data-theme="light"]
+  .packet-filter-advanced {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    ) !important;
+
+  border-color:
+    var(--border) !important;
+}
+
+html[data-theme="light"]
+  .packet-filter-builder-heading {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(
+        0,
+        128,
+        82,
+        0.055
+      ),
+      transparent
+    ),
+    rgba(
+      247,
+      251,
+      248,
+      0.92
+    ) !important;
+}
+
+html[data-theme="light"]
+  .packet-filter-input {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    ) !important;
+
+  color:
+    var(--text) !important;
+}
+
+html[data-theme="light"]
+  .packet-filter-join,
+html[data-theme="light"]
+  .packet-filter-direction {
+  background:
+    rgba(
+      244,
+      248,
+      245,
+      0.94
+    ) !important;
+}
+
+html[data-theme="light"]
+  .packet-filter-preview {
+  background:
+    rgba(
+      247,
+      251,
+      248,
+      0.86
+    ) !important;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .packet-filter-sections {
+    grid-template-columns:
+      1fr;
+  }
+
+  .packet-filter-fields {
+    grid-template-columns:
+      1fr;
+  }
+
+  .packet-filter-section,
+  .packet-filter-fields,
+  .packet-filter-advanced {
+    grid-column:
+      1;
+  }
+
+  .packet-filter-preview {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+
+  .packet-filter-preview-actions {
+    width: 100%;
+
+    justify-content:
+      flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .packet-filter-builder-heading {
+    flex-direction:
+      column;
+  }
+
+  .packet-filter-section-heading {
+    flex-direction:
+      column;
+  }
+
+  .packet-filter-preview-actions {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+
+    width: 100%;
+  }
+
+  .packet-filter-pending {
+    margin:
+      0 0 3px;
+  }
+
+  .packet-filter-preview-actions button {
+    width: 100%;
+  }
+
+  .packet-active-filter {
+    flex-direction:
+      column;
+
+    gap: 4px;
+  }
+}

@@ -402,8 +402,18 @@ bool ControllerHttpServer::start(std::string& error_message) {
         const auto agent_id = req.matches[1].str();
         const auto capture_id = req.matches[2].str();
 
-        const auto offset = get_size_query_param(req, "offset", 0, 1000000);
-        const auto limit = get_size_query_param(req, "limit", 200, 500);
+        const auto offset =
+            get_size_query_param(req, "offset", 0, 1000000);
+
+        const auto limit =
+            get_size_query_param(req, "limit", 200, 500);
+
+        std::string filter_expression;
+
+        if (req.has_param("filter")) {
+            filter_expression =
+                req.get_param_value("filter");
+        }
 
         ControllerStoredCaptureInfo stored_capture;
         std::string route_error_message;
@@ -414,7 +424,11 @@ bool ControllerHttpServer::start(std::string& error_message) {
                 stored_capture,
                 route_error_message
             )) {
-            res.set_content(make_error_json(route_error_message), "application/json");
+            res.set_content(
+                make_error_json(route_error_message),
+                "application/json"
+            );
+
             res.status = 404;
             return;
         }
@@ -425,15 +439,37 @@ bool ControllerHttpServer::start(std::string& error_message) {
                 stored_capture,
                 offset,
                 limit,
+                filter_expression,
                 packet_list,
                 route_error_message
             )) {
-            res.set_content(make_error_json(route_error_message), "application/json");
-            res.status = 500;
+            res.set_content(
+                make_error_json(route_error_message),
+                "application/json"
+            );
+
+            /*
+             * Invalid BPF expression is a client error.
+             */
+            if (
+                route_error_message.rfind(
+                    "Invalid packet filter:",
+                    0
+                ) == 0
+            ) {
+                res.status = 400;
+            } else {
+                res.status = 500;
+            }
+
             return;
         }
 
-        res.set_content(to_packet_list_json(packet_list), "application/json");
+        res.set_content(
+            to_packet_list_json(packet_list),
+            "application/json"
+        );
+
         res.status = 200;
     });
 

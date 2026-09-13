@@ -14,6 +14,7 @@ public:
         const ControllerStoredCaptureInfo& stored_capture,
         std::size_t offset,
         std::size_t limit,
+        const std::string& filter_expression,
         PcapPacketList& packet_list,
         std::string& error_message
     );

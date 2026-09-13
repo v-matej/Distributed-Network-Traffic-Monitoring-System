@@ -45,6 +45,17 @@ struct PcapHandleGuard {
     }
 };
 
+struct BpfProgramGuard {
+    bpf_program program {};
+    bool compiled = false;
+
+    ~BpfProgramGuard() {
+        if (compiled) {
+            pcap_freecode(&program);
+        }
+    }
+};
+
 std::uint16_t read_u16_be(const unsigned char* data) {
     return static_cast<std::uint16_t>(
         (static_cast<std::uint16_t>(data[0]) << 8U) |
@@ -664,15 +675,18 @@ bool PcapPacketInspector::list_packets(
     const ControllerStoredCaptureInfo& stored_capture,
     std::size_t offset,
     std::size_t limit,
+    const std::string& filter_expression,
     PcapPacketList& packet_list,
     std::string& error_message
 ) {
     pcap_t* raw_handle = nullptr;
+
     if (!open_pcap(stored_capture, raw_handle, error_message)) {
         return false;
     }
 
-    PcapHandleGuard guard {raw_handle};
+    PcapHandleGuard handle_guard {raw_handle};
+    BpfProgramGuard filter_guard;
 
     packet_list = {};
     packet_list.agent_id = stored_capture.agent_id;
@@ -683,35 +697,105 @@ bool PcapPacketInspector::list_packets(
 
     const auto datalink = pcap_datalink(raw_handle);
     const auto* datalink_name = pcap_datalink_val_to_name(datalink);
-    packet_list.datalink_name = datalink_name ? datalink_name : "unknown";
+
+    packet_list.datalink_name =
+        datalink_name ? datalink_name : "unknown";
+
+    /*
+     * Compile the filter against the already stored PCAP.
+     *
+     * This is not a new capture filter. The filter is applied while
+     * reading packets from the existing PCAP file.
+     */
+    if (!filter_expression.empty()) {
+        if (pcap_compile(
+                raw_handle,
+                &filter_guard.program,
+                filter_expression.c_str(),
+                1,
+                PCAP_NETMASK_UNKNOWN
+            ) != 0) {
+            error_message =
+                std::string("Invalid packet filter: ") +
+                pcap_geterr(raw_handle);
+
+            return false;
+        }
+
+        filter_guard.compiled = true;
+    }
 
     pcap_pkthdr* header = nullptr;
     const unsigned char* packet = nullptr;
 
     std::time_t first_time = 0;
     int first_microseconds = 0;
-    std::uint64_t number = 0;
+
+    /*
+     * packet_number:
+     *     Original packet number inside the PCAP.
+     *
+     * matching_packet_count:
+     *     Number of packets satisfying the current filter.
+     */
+    std::uint64_t packet_number = 0;
+    std::uint64_t matching_packet_count = 0;
 
     while (true) {
-        const auto next_result = pcap_next_ex(raw_handle, &header, &packet);
+        const auto next_result =
+            pcap_next_ex(raw_handle, &header, &packet);
 
         if (next_result == 1) {
-            number += 1;
-            packet_list.total_packets = number;
+            packet_number += 1;
 
             if (first_time == 0) {
-                first_time = static_cast<std::time_t>(header->ts.tv_sec);
-                first_microseconds = static_cast<int>(header->ts.tv_usec);
+                first_time =
+                    static_cast<std::time_t>(header->ts.tv_sec);
+
+                first_microseconds =
+                    static_cast<int>(header->ts.tv_usec);
             }
 
-            const auto zero_based_index = number - 1;
-            if (zero_based_index >= offset && packet_list.packets.size() < limit) {
+            /*
+             * Apply the BPF expression to this packet from the
+             * already stored PCAP.
+             */
+            if (filter_guard.compiled) {
+                const auto matches =
+                    pcap_offline_filter(
+                        &filter_guard.program,
+                        header,
+                        packet
+                    );
+
+                if (matches == 0) {
+                    continue;
+                }
+            }
+
+            const auto filtered_index = matching_packet_count;
+
+            matching_packet_count += 1;
+
+            /*
+             * total_packets represents the number of packets in the
+             * current filtered result set.
+             */
+            packet_list.total_packets = matching_packet_count;
+
+            /*
+             * Pagination is performed AFTER filtering.
+             */
+            if (
+                filtered_index >= offset &&
+                packet_list.packets.size() < limit
+            ) {
                 packet_list.packets.push_back(
                     decode_packet(
                         datalink,
                         *header,
                         packet,
-                        number,
+                        packet_number,
                         first_time,
                         first_microseconds,
                         nullptr
@@ -730,7 +814,10 @@ bool PcapPacketInspector::list_packets(
             break;
         }
 
-        error_message = std::string("Failed while reading PCAP: ") + pcap_geterr(raw_handle);
+        error_message =
+            std::string("Failed while reading PCAP: ") +
+            pcap_geterr(raw_handle);
+
         return false;
     }
 
